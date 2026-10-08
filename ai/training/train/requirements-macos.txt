@@ -1,0 +1,17 @@
+torch==2.2.2
+
+# Quantization-aware training, exported to ap_fixed for the HLS core.
+brevitas==0.13.2
+
+# Held below NumPy 2 for torch 2.2.2 (constraint 2 above).
+numpy==1.26.4
+scipy==1.17.1
+
+# Data loading and the participant/window split.
+pandas==3.0.5
+scikit-learn==1.9.0
+
+# Training-time reporting: loss curve, layer table, epoch progress bar.
+matplotlib==3.11.1
+torchsummary==1.5.1
+tqdm==4.70.0
