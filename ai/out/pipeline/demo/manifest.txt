@@ -1,0 +1,23 @@
+run          demo
+status       OK
+started      2026-09-28 09:33:26Z
+finished     2026-09-28 10:42:36Z
+host         DESKTOP-DVNBCH1
+git          ffc3413 (dirty)
+
+width        5
+build        E
+from         train
+hls mode     full
+stages run   train check export hls vivado
+absent       0 artefact(s)
+
+bitstream/   .bit + .hwh + norm_stats.json + description json + golden npz.
+             Everything needed to run the model on the Ultra96.
+headers/     the generated PL interface, exactly as this run built it.
+model/       the quantized checkpoint everything else derives from.
+reports/     vivado post-implementation and HLS estimates; simulation
+             reports are included when HLS mode is full. The
+             loss curve and a confusion matrix per trained model.
+logs/        stdout of every stage. The accuracy numbers, the layer
+             table and the accumulator peaks live only here.
