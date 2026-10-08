@@ -1,0 +1,23 @@
+# CG4002 AI subsystem — training-side dependencies.
+# Python 3.13.7
+#
+#   python -m venv .venv
+#   .venv/Scripts/pip install -r requirements.txt     # Windows
+#   .venv/bin/pip install -r requirements.txt         # Linux / Ultra96
+#
+# torch here is the default CPU build. For CUDA, install torch first from
+# https://pytorch.org/get-started/locally/ then run this file.
+
+torch==2.14.0
+
+# Quantization-aware training, exported to ap_fixed for the HLS core.
+brevitas==0.13.2
+
+# Data loading and the participant/window split.
+pandas==3.0.5
+scikit-learn==1.9.0
+
+# Training-time reporting: loss curve, layer table, epoch progress bar.
+matplotlib==3.11.1
+torchsummary==1.5.1
+tqdm==4.70.0
