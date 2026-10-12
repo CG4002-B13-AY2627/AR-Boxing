@@ -49,3 +49,7 @@ def load_postprocess(nn, pre):
 def load_comms_server():
     import comms_server
     return comms_server
+
+def load_ai_events():
+    import ai_events
+    return ai_events

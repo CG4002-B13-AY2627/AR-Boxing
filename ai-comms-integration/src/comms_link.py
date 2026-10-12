@@ -1,6 +1,7 @@
 import queue
+import threading
 
-from config import load_comms_server
+from config import load_ai_events, load_comms_server
 
 
 def install_hook(in_q):
@@ -13,6 +14,16 @@ def install_hook(in_q):
             pass
 
     comms_server.match_pipeline_reply = hooked
+
+
+def start_forwarder(out_q):
+    ai_events = load_ai_events()
+
+    def forward():
+        while True:
+            ai_events.publish(out_q.get())
+
+    threading.Thread(target=forward, daemon=True).start()
 
 
 def run_comms():
