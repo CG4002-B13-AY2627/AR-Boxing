@@ -37,7 +37,6 @@ websockets package.
 """
 import argparse
 import asyncio
-import json
 import os
 import random
 import socket
@@ -50,6 +49,7 @@ import protocol as P
 
 try:
     import websockets
+    from visualizer_protocol import MAX_MESSAGE_BYTES, PhoneHub, periodic_states
 except ImportError:
     websockets = None
 
@@ -71,12 +71,9 @@ tls_ctx = None
 pipeline_lock = threading.Lock()
 pipeline_outstanding = []       # (value, time_sent), awaiting a verified reply
 visualizer_loop = None          # asyncio loop running the websocket server
-visualizer_sockets = set()      # currently connected visualizer websockets
+visualizer_hub = None           # protocol-v2 phone sessions on visualizer_loop
 PIPELINE_REPLY_TIMEOUT_S = 5.0
-PUNCH_TYPES = ["JAB", "LEFT_HOOK", "UPPERCUT", "STRAIGHT"]
-_next_event_seq = [0]   # a monotonic counter: two events in the same millisecond
-                        # must NOT get the same seq, or the Visualizer's duplicate-seq
-                        # check (Section 6.2.2 / MatchStateStore) silently drops one
+PUNCH_TYPES = ["JAB", "LEFT_HOOK", "LEFT_UPPERCUT", "CROSS"]
 
 
 def pipeline_expected_reply(v):
@@ -169,35 +166,26 @@ def match_pipeline_reply(sess, fields):
 
 
 def push_random_ai_event(player):
-    """Generates a random GameEvent (Section 6.2.3.1) and pushes it to every
-    connected visualizer over the WSS link."""
-    with pipeline_lock:
-        _next_event_seq[0] += 1
-        seq = _next_event_seq[0]
-    event = {
-        "seq": seq,
-        "timestamp": int(time.time() * 1000),
-        "event": "PUNCH",
-        "source_player": player,
-        "target_player": 2 if player == 1 else 1,
-        "punch": random.choice(PUNCH_TYPES),
-        "confidence": round(random.uniform(0.7, 0.99), 2),
-        "intensity": round(random.uniform(0.3, 1.0), 2),
-    }
-    message = json.dumps(event)
+    """Queue a synthetic zero-damage miss after a verified ESP32 demo reply.
 
+    The actual Game Engine must replace this with observation/outcome handling.
+    """
     with pipeline_lock:
         loop = visualizer_loop
-        targets = list(visualizer_sockets)
+        hub = visualizer_hub
 
-    if loop is None or not targets:
+    if loop is None or hub is None:
         with print_lock:
-            print(f"[VISUALIZER] no visualizer connected, event not sent: {message}", flush=True)
+            print("[VISUALIZER] WSS server unavailable; demo event not sent", flush=True)
         return
-    for ws in targets:
-        asyncio.run_coroutine_threadsafe(ws.send(message), loop)
+    punch = random.choice(PUNCH_TYPES)
+    confidence = round(random.uniform(0.7, 0.99), 2)
+    intensity = round(random.uniform(0.3, 1.0), 2)
+    asyncio.run_coroutine_threadsafe(
+        hub.broadcast_demo_punch(player, punch, confidence, intensity), loop
+    )
     with print_lock:
-        print(f"[VISUALIZER] pushed: {message}", flush=True)
+        print(f"[VISUALIZER] queued demo {punch} from P{player} (MISS, damage 0)", flush=True)
 
 
 def handle_pipeline_command_client(conn, addr):
@@ -267,26 +255,28 @@ def pipeline_command_server(port):
 async def visualizer_handler(websocket):
     addr = websocket.remote_address
     with print_lock:
-        print(f"[VISUALIZER] connected: {addr[0]}:{addr[1]}", flush=True)
-    with pipeline_lock:
-        visualizer_sockets.add(websocket)
+        print(f"[VISUALIZER] encrypted socket: {addr[0]}:{addr[1]}; awaiting ClientHello", flush=True)
     try:
-        await websocket.wait_closed()
+        await visualizer_hub.handle(websocket)
     finally:
-        with pipeline_lock:
-            visualizer_sockets.discard(websocket)
         with print_lock:
             print(f"[VISUALIZER] {addr[0]}:{addr[1]} disconnected", flush=True)
 
 
 async def visualizer_server_main(port, cert, key):
-    global visualizer_loop
-    visualizer_loop = asyncio.get_running_loop()
+    global visualizer_loop, visualizer_hub
+    with pipeline_lock:
+        visualizer_loop = asyncio.get_running_loop()
+        visualizer_hub = PhoneHub()
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     ctx.load_cert_chain(cert, key)
     print(f"[VISUALIZER] WSS listening on port {port}", flush=True)
-    async with websockets.serve(visualizer_handler, '0.0.0.0', port, ssl=ctx):
-        await asyncio.Future()
+    async with websockets.serve(
+        visualizer_handler, '0.0.0.0', port, ssl=ctx,
+        max_size=MAX_MESSAGE_BYTES,
+    ):
+        await periodic_states(visualizer_hub)
 
 
 def run_visualizer_server(port, cert, key):
@@ -512,7 +502,11 @@ def main():
                          '(needs --tls, and websockets installed)')
     ap.add_argument('--pipeline-port', type=int, default=8891, help='keyboard trigger port')
     ap.add_argument('--visualizer-port', type=int, default=8889, help='WSS port for the visualizer')
+    ap.add_argument('--visualizer-cert', help='phone WSS leaf certificate; defaults to --cert')
+    ap.add_argument('--visualizer-key', help='phone WSS private key; defaults to --key')
     args = ap.parse_args()
+    if bool(args.visualizer_cert) != bool(args.visualizer_key):
+        sys.exit("--visualizer-cert and --visualizer-key must be supplied together")
     if args.pipeline:
         if not args.tls:
             sys.exit("--pipeline needs --tls (the visualizer link is WSS)")
@@ -528,6 +522,14 @@ def main():
         except (FileNotFoundError, ssl.SSLError) as e:
             sys.exit(f"cannot start with --tls: {e}\n"
                      f"{args.cert} and {args.key} must exist (see make_cert.py)")
+    visualizer_cert = args.visualizer_cert or args.cert
+    visualizer_key = args.visualizer_key or args.key
+    if args.pipeline:
+        try:
+            check_ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            check_ctx.load_cert_chain(visualizer_cert, visualizer_key)
+        except (FileNotFoundError, ssl.SSLError) as e:
+            sys.exit(f"cannot start visualizer WSS: {e}")
 
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -540,7 +542,7 @@ def main():
     if args.pipeline:
         threading.Thread(target=pipeline_command_server, args=(args.pipeline_port,), daemon=True).start()
         threading.Thread(target=run_visualizer_server,
-                         args=(args.visualizer_port, args.cert, args.key), daemon=True).start()
+                         args=(args.visualizer_port, visualizer_cert, visualizer_key), daemon=True).start()
 
     try:
         while True:
