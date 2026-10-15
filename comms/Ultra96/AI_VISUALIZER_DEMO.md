@@ -9,6 +9,56 @@ needs no FPGA and injects a model-shaped classified attack. `--source
 fpga-noise` runs the existing PYNQ model with seeded random noise, **not**
 live ESP32 sensor data.
 
+## Live keyboard simulation
+
+Start one server from `C:\Dev\AR-Boxing` (replace certificate paths with your
+working local WSS pair):
+
+```powershell
+python comms/Ultra96/ai_to_visualizer_demo.py --source keyboard --host 127.0.0.1 --port 8889 --cert .\comms\Ultra96\wss-certs\server.crt --key .\comms\Ultra96\wss-certs\server.key --wait-players 2 --response-timeout-ms 2000
+```
+
+Connect player 1 and player 2 visualizers using distinct `client_id` values,
+`Requested Player Id` 1 and 2, and `wss://127.0.0.1:8889` in the Unity Editor.
+Use the reachable server/tunnel address instead of loopback on an iPhone.
+The certificate must be trusted by each client and cover the URL host. The
+terminal accepts keys immediately; before both handshakes it shows `LOBBY`
+and gameplay actions are rejected. After both join it shows `FIGHTING`.
+
+Press a key in the server terminal (no Enter needed in an interactive terminal):
+
+| Key | Action |
+|---|---|
+| `1`, `2` | Select attacker/guarding player |
+| `j`, `h`, `u` | Request jab, hook, uppercut from selected player |
+| `g`, `x` | Start or end the selected player's timed guard |
+| `s` | Broadcast and print a current `MatchState` |
+| `r` | Retry the last action with the exact same ID (deduplication test) |
+| `?`, `q` | Show keys or quit and close WSS |
+
+The attacker's phone must answer the `PunchAttempt` with its AprilTag
+`PunchObservation`. The terminal does **not** choose hit/miss; if the phone
+does not reply before the configured timeout, the attack resolves as a miss.
+The terminal prints the final `GameEvent` sequence/outcome/damage and both
+players' health, stamina, guard, phase, and remaining time. Every accepted
+action is broadcast to all registered phones. Rejected actions produce no
+`GameEvent` (for example during lobby, guard, animation lock, or low stamina).
+`s` is useful for inspecting stamina regeneration and the timer without
+creating an attack. A guard lasts one second, so press `g` for the defender
+immediately before an attack to test `BLOCK`. Use `--round-seconds 15` to see
+`ROUND_END` and `MATCH_END` quickly. Each `j`/`h`/`u` press creates a new ID;
+`r` resubmits the most recent ID and should not send or apply a second event.
+Piped/non-interactive input accepts commands followed by Enter. Keyboard mode
+does not need FPGA dependencies or wait for `--start-delay`; `q` closes it.
+
+For example, to test both event and state changes: connect both players,
+press `1`, `g`, `2`, `h` quickly; keep player 1's tag visible to player 2.
+Both phones should receive the same `BLOCK` event and state: player 1 loses
+reduced health, player 1 spent guard stamina, and player 2 spent hook stamina.
+After a second, press `s` to see guard expire and stamina regenerate. Press
+`r` to confirm no additional damage or stamina cost. Alternatively hide the
+tag before the hook to see a `MISS` with no health change.
+
 ## Fast local test (Windows Unity Editor)
 
 From `C:\Dev\AR-Boxing`, first run the automated, encrypted two-phone test:

@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """One-process AI -> PunchAttempt -> observation -> final GameEvent WSS demo.
 
-Use --source fake for a no-FPGA end-to-end test, or --source fpga-noise for the
-existing seeded-noise model test. Neither source uses live ESP sensor data.
+Use --source keyboard for live, no-FPGA input, --source fake for a scripted
+end-to-end test, or --source fpga-noise for the seeded-noise model test.
+None of these sources uses live ESP sensor data.
 The final GameEvent carrying the attack_id acknowledges the observation;
 MatchState follows it on both phones. Only this process should bind port 8889.
 """
@@ -14,6 +15,7 @@ import json
 from pathlib import Path
 import ssl
 import sys
+import threading
 import time
 import traceback
 import uuid
@@ -173,6 +175,174 @@ async def run_fake(args, hub, action_map, attack_ids):
     print(f"[DONE] {args.fake_count} fake AI event(s) processed", flush=True)
 
 
+class KeyboardInput:
+    """Forward terminal keys to the asyncio loop without blocking WSS traffic."""
+
+    def __init__(self, queue):
+        self.queue = queue
+        self.loop = asyncio.get_running_loop()
+        self.stop = threading.Event()
+        self.thread = threading.Thread(target=self._read, daemon=True)
+
+    def start(self):
+        self.thread.start()
+
+    def close(self):
+        self.stop.set()
+        self.thread.join(timeout=0.5)
+
+    def _emit(self, key):
+        def enqueue():
+            if not self.queue.full():
+                self.queue.put_nowait(key.lower())
+        try:
+            self.loop.call_soon_threadsafe(enqueue)
+        except RuntimeError:  # event loop already closed during shutdown
+            pass
+
+    def _read(self):
+        try:
+            self._read_keys()
+        except Exception as exc:
+            print(f"[KEYS ERROR] terminal input unavailable: {exc}",
+                  file=sys.stderr, flush=True)
+            self._emit("q")
+
+    def _read_keys(self):
+        if not sys.stdin.isatty():
+            # Piped input is useful for automated smoke tests; one command per
+            # line, followed by Enter. EOF shuts the server down cleanly.
+            while not self.stop.is_set():
+                line = sys.stdin.readline()
+                if not line:
+                    self._emit("q")
+                    return
+                for key in line.strip():
+                    self._emit(key)
+            return
+        if sys.platform == "win32":
+            import msvcrt
+            while not self.stop.is_set():
+                if not msvcrt.kbhit():
+                    self.stop.wait(0.05)
+                    continue
+                key = msvcrt.getwch()
+                if key in ("\x00", "\xe0"):
+                    msvcrt.getwch()  # discard function/arrow-key suffix
+                else:
+                    self._emit(key)
+            return
+        import os
+        import select
+        import termios
+        import tty
+        fd = sys.stdin.fileno()
+        original = termios.tcgetattr(fd)
+        try:
+            tty.setcbreak(fd)
+            while not self.stop.is_set():
+                if select.select([fd], [], [], 0.1)[0]:
+                    data = os.read(fd, 1)
+                    if not data:
+                        self._emit("q")
+                        return
+                    self._emit(data.decode("utf-8", errors="ignore"))
+        finally:
+            termios.tcsetattr(fd, termios.TCSADRAIN, original)
+
+
+def print_match_state(hub):
+    state = hub.engine.snapshot()
+    players = []
+    for player in (1, 2):
+        value = state[f"player_{player}"]
+        players.append(f"P{player} HP={value['health']:g} "
+                       f"STA={value['stamina']:g} "
+                       f"GUARD={'ON' if value['is_blocking'] else 'off'}")
+    print(f"[STATE] seq={hub.state_seq} {state['state']} "
+          f"time={state['round_time']:g}s | {' | '.join(players)}", flush=True)
+
+
+async def run_keyboard_commands(args, hub, attack_ids, commands):
+    """Run console commands; a queue makes the same path testable without a TTY."""
+    selected = 1
+    last = None
+    print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
+          "g guard | x end guard | s state | r retry last ID | ? help | q quit",
+          flush=True)
+    print_match_state(hub)
+    while True:
+        key = await commands.get()
+        if key == "q":
+            print("[STOP] keyboard demo closed", flush=True)
+            return
+        if key == "?":
+            print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
+                  "g guard | x end guard | s state | r retry last ID | ? help | q quit",
+                  flush=True)
+            continue
+        if key in ("1", "2"):
+            selected = int(key)
+            print(f"[SELECT] player {selected}", flush=True)
+            continue
+        if key == "s":
+            await hub.broadcast_state()
+            print_match_state(hub)
+            continue
+        if key == "r":
+            if last is None:
+                print("[RETRY] no earlier action", flush=True)
+                continue
+            kind, player, value, action_id = last
+            print(f"[RETRY] {action_id}", flush=True)
+        elif key in ("j", "h", "u"):
+            kind, player = "punch", selected
+            value = {"j": "JAB", "h": "LEFT_HOOK" if player == 1 else "RIGHT_HOOK",
+                     "u": "LEFT_UPPERCUT" if player == 1 else "RIGHT_UPPERCUT"}[key]
+            action_id = attack_ids.next(player - 1)
+            last = kind, player, value, action_id
+        elif key in ("g", "x"):
+            kind, player, value = "guard", selected, key == "g"
+            action_id = attack_ids.next(player - 1)
+            last = kind, player, value, action_id
+        else:
+            if key.strip():
+                print(f"[KEYS] unknown key {key!r}; press ? for help", flush=True)
+            continue
+
+        if kind == "punch":
+            if key != "r":
+                print(f"[ATTEMPT] P{player} {value} id={action_id}; "
+                      "waiting for phone observation", flush=True)
+            event = await hub.request_punch(
+                player, value, args.fake_confidence, args.demo_intensity,
+                response_timeout_ms=args.response_timeout_ms, attack_id=action_id)
+        else:
+            print(f"[GUARD] P{player} {'start' if value else 'end'} id={action_id}",
+                  flush=True)
+            event = await hub.request_guard(
+                player, active=value, confidence=args.fake_confidence,
+                guard_id=action_id)
+        if event is None:
+            print("[REJECTED] not fighting, animation/guard active, or "
+                  "insufficient stamina", flush=True)
+        else:
+            print(f"[EVENT] seq={event['seq']} {event['event']} "
+                  f"outcome={event.get('outcome', '-')} "
+                  f"damage={event.get('damage', 0):g} id={action_id}", flush=True)
+        print_match_state(hub)
+
+
+async def run_keyboard(args, hub, attack_ids):
+    commands = asyncio.Queue(maxsize=32)
+    keyboard = KeyboardInput(commands)
+    keyboard.start()
+    try:
+        await run_keyboard_commands(args, hub, attack_ids, commands)
+    finally:
+        keyboard.close()
+
+
 async def main(args):
     if args.source == "fpga-noise" and not (args.ai_dir / "src").is_dir():
         raise RuntimeError(f"AI src/ directory not found: {args.ai_dir / 'src'}")
@@ -210,21 +380,26 @@ async def main(args):
         try:
             print(f"[WSS] host={args.host} port={args.port} stream={hub.stream_id} "
                   f"source={args.source}", flush=True)
-            print(f"[WAIT] connect {args.wait_players} phone(s); complete ClientHello first", flush=True)
-            while (len(hub.ready) < args.wait_players or
-                   (args.source == "fake" and args.fake_player not in hub.ready)):
-                await asyncio.sleep(0.2)
-            print(f"[READY] phone handshake complete; source starts in "
-                  f"{args.start_delay:g} seconds", flush=True)
-            await asyncio.sleep(args.start_delay)
-            if args.source == "fake":
-                await run_fake(args, hub, action_map, attack_ids)
+            if args.source == "keyboard":
+                print(f"[WAIT] connect {args.wait_players} phone(s); "
+                      "commands are available now", flush=True)
+                await run_keyboard(args, hub, attack_ids)
             else:
-                await asyncio.to_thread(
-                    run_model, args, hub, asyncio.get_running_loop(), action_map, attack_ids)
-            if not args.exit_after_demo:
-                print("[WSS] remains open; Ctrl+C to stop", flush=True)
-                await asyncio.Future()
+                print(f"[WAIT] connect {args.wait_players} phone(s); complete ClientHello first", flush=True)
+                while (len(hub.ready) < args.wait_players or
+                       (args.source == "fake" and args.fake_player not in hub.ready)):
+                    await asyncio.sleep(0.2)
+                print(f"[READY] phone handshake complete; source starts in "
+                      f"{args.start_delay:g} seconds", flush=True)
+                await asyncio.sleep(args.start_delay)
+                if args.source == "fake":
+                    await run_fake(args, hub, action_map, attack_ids)
+                else:
+                    await asyncio.to_thread(
+                        run_model, args, hub, asyncio.get_running_loop(), action_map, attack_ids)
+                if not args.exit_after_demo:
+                    print("[WSS] remains open; Ctrl+C to stop", flush=True)
+                    await asyncio.Future()
         finally:
             state_task.cancel()
             await asyncio.gather(state_task, return_exceptions=True)
@@ -233,8 +408,9 @@ async def main(args):
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", choices=("fake", "fpga-noise"),
-                        default="fpga-noise", help="fake needs no FPGA; fpga-noise uses seeded model input")
+    parser.add_argument("--source", choices=("keyboard", "fake", "fpga-noise"),
+                        default="fpga-noise",
+                        help="keyboard and fake need no FPGA; fpga-noise uses seeded model input")
     parser.add_argument("--ai-dir", type=Path, default=Path("/home/xilinx/ai/demo"),
                         help="PYNQ demo directory, used only by fpga-noise")
     parser.add_argument("--cert", type=Path, default=here / "server.crt",

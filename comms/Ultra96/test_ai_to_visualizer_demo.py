@@ -13,7 +13,8 @@ import unittest
 import websockets
 
 from ai_to_visualizer_demo import (
-    AttackIds, DEFAULT_ACTION_MAP, FakeAiEvent, run_fake, send_ai_demo,
+    AttackIds, DEFAULT_ACTION_MAP, FakeAiEvent, run_fake,
+    run_keyboard_commands, send_ai_demo,
 )
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub
@@ -49,6 +50,87 @@ async def receive_type(websocket, message_type):
 
 @unittest.skipUnless(shutil.which("openssl"), "openssl is required for TLS test")
 class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
+    async def test_keyboard_guard_punch_retry_and_state_to_both_phones(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cert = Path(directory) / "test.crt"
+            key = Path(directory) / "test.key"
+            subprocess.run([
+                "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", str(key), "-out", str(cert), "-days", "1",
+                "-subj", "/CN=127.0.0.1",
+                "-addext", "subjectAltName=IP:127.0.0.1",
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            server_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            server_tls.load_cert_chain(cert, key)
+            client_tls = ssl.create_default_context(cafile=str(cert))
+            hub = PhoneHub(engine=GameEngine(clock=FakeClock()))
+            args = SimpleNamespace(fake_confidence=0.95, demo_intensity=0.6,
+                                   response_timeout_ms=1000)
+            commands = asyncio.Queue()
+
+            async with websockets.serve(hub.handle, "127.0.0.1", 0, ssl=server_tls) as server:
+                url = "wss://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+                async with websockets.connect(url, ssl=client_tls) as one:
+                    await one.send(hello(1))
+                    await receive_type(one, "ServerWelcome")
+                    await receive_type(one, "MatchState")
+                    async with websockets.connect(url, ssl=client_tls) as two:
+                        await two.send(hello(2))
+                        await receive_type(two, "ServerWelcome")
+                        await receive_type(two, "MatchState")
+                        task = asyncio.create_task(run_keyboard_commands(
+                            args, hub, AttackIds("keys"), commands))
+                        try:
+                            await commands.put("g")  # P1 guards
+                            guard_one = await receive_type(one, "GameEvent")
+                            guard_two = await receive_type(two, "GameEvent")
+                            self.assertEqual(guard_one, guard_two)
+                            self.assertEqual(guard_one["event"], "GUARD")
+                            state_one = await receive_type(one, "MatchState")
+                            self.assertEqual(state_one, await receive_type(two, "MatchState"))
+                            self.assertTrue(state_one["player_1"]["is_blocking"])
+                            self.assertEqual(state_one["player_1"]["stamina"], 92.0)
+
+                            await commands.put("2")
+                            await commands.put("h")  # P2 attacks guarded P1
+                            attempt = await receive_type(two, "PunchAttempt")
+                            self.assertEqual(attempt["punch"], "RIGHT_HOOK")
+                            await two.send(json.dumps({
+                                "type": "PunchObservation", "protocol_version": 2,
+                                "match_id": attempt["match_id"],
+                                "stream_id": attempt["stream_id"],
+                                "attack_id": attempt["attack_id"],
+                                "observer_player": 2,
+                                "observation": "TARGET_TRACKED",
+                                "target_age_ms": 0, "client_timestamp": 123,
+                            }))
+                            event_one = await receive_type(one, "GameEvent")
+                            self.assertEqual(event_one, await receive_type(two, "GameEvent"))
+                            self.assertEqual(event_one["outcome"], "BLOCK")
+                            self.assertEqual(event_one["damage"], 1.8)
+                            final_one = await receive_type(one, "MatchState")
+                            self.assertEqual(final_one, await receive_type(two, "MatchState"))
+                            self.assertEqual(final_one["player_1"]["health"], 98.2)
+                            self.assertEqual(final_one["player_2"]["stamina"], 85.0)
+
+                            await commands.put("s")  # force a fresh MatchState
+                            snapshot_one = await receive_type(one, "MatchState")
+                            self.assertEqual(snapshot_one, await receive_type(two, "MatchState"))
+                            self.assertGreater(snapshot_one["seq"], final_one["seq"])
+                            await commands.put("r")  # same attack ID: cached, no broadcast
+                            await commands.put("q")
+                            await asyncio.wait_for(task, 3)
+                            self.assertEqual(hub.health[1], 98.2)
+                            self.assertEqual(hub.event_seq, event_one["seq"])
+                            with self.assertRaises(asyncio.TimeoutError):
+                                await asyncio.wait_for(one.recv(), 0.05)
+                            with self.assertRaises(asyncio.TimeoutError):
+                                await asyncio.wait_for(two.recv(), 0.05)
+                        finally:
+                            if not task.done():
+                                task.cancel()
+                                await asyncio.gather(task, return_exceptions=True)
+
     async def test_fake_ai_attempt_observation_and_identical_final_state(self):
         with tempfile.TemporaryDirectory() as directory:
             cert = Path(directory) / "test.crt"
