@@ -1,11 +1,10 @@
 """
-Standalone protocol-v2 WSS demo for the phone Visualizer. This is not the
-authoritative Game Engine: it emits zero-damage demo misses and snapshots.
+Standalone protocol-v2 WSS transport demo for the phone Visualizer. Synthetic
+punches use the shared server-side GameEngine; sensor/FPGA input is not wired.
 
-Uses the same certificate as the ESP32 link (server.crt / server.key, made by
-make_cert.py). The phone app must be allowed to trust that self-signed
-certificate in the device OS trust store. Copying server.crt into Unity Assets
-does not establish trust.
+Use a phone-facing certificate whose CA is explicitly trusted by iOS and whose
+SAN matches the URL host (see ../Laptop/make_visualizer_cert.py). Copying a
+certificate into Unity Assets does not establish OS trust.
 
 Uses APIs present in websockets 10.3; verify on the deployed Ultra96.
 
@@ -23,7 +22,7 @@ import sys
 import websockets
 from visualizer_protocol import MAX_MESSAGE_BYTES, PhoneHub
 
-# These are synthetic events. Real hits/blocks require the Ultra96 Game Engine.
+# These are synthetic punch inputs; the demo hub resolves their outcomes.
 DUMMY_GAME_EVENTS = [
     dict(source=1, target=2, punch='LEFT_HOOK', confidence=0.90, intensity=0.70),
     dict(source=2, target=1, punch='JAB', confidence=0.85, intensity=0.45),
@@ -54,12 +53,13 @@ def make_handler(hub):
 async def stream_demo(hub, interval):
     while True:
         await asyncio.sleep(interval)
+        if hub.engine.phase != "FIGHTING":
+            continue
         choice = random.choice(DUMMY_GAME_EVENTS)
-        await hub.broadcast_demo_punch(
+        await hub.request_punch(
             choice['source'], choice['punch'],
             choice['confidence'], choice['intensity'],
         )
-        await hub.broadcast_state()
 
 
 def quiet_errors(loop, context):
