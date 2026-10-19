@@ -166,10 +166,7 @@ def match_pipeline_reply(sess, fields):
 
 
 def push_random_ai_event(player):
-    """Queue a synthetic zero-damage miss after a verified ESP32 demo reply.
-
-    The actual Game Engine must replace this with observation/outcome handling.
-    """
+    """Queue a synthetic punch attempt after a verified ESP32 demo reply."""
     with pipeline_lock:
         loop = visualizer_loop
         hub = visualizer_hub
@@ -182,10 +179,10 @@ def push_random_ai_event(player):
     confidence = round(random.uniform(0.7, 0.99), 2)
     intensity = round(random.uniform(0.3, 1.0), 2)
     asyncio.run_coroutine_threadsafe(
-        hub.broadcast_demo_punch(player, punch, confidence, intensity), loop
+        hub.request_punch(player, punch, confidence, intensity), loop
     )
     with print_lock:
-        print(f"[VISUALIZER] queued demo {punch} from P{player} (MISS, damage 0)", flush=True)
+        print(f"[VISUALIZER] queued demo {punch} from P{player}; awaiting observation", flush=True)
 
 
 def handle_pipeline_command_client(conn, addr):

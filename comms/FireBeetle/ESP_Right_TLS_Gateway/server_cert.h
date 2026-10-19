@@ -1,3 +1,7 @@
+#pragma once
+// PUBLIC certificate from your previous submission; no private key here.
+// If the server now uses a different certificate, replace the PEM below.
+static const char SERVER_CERT[] = R"CERT(
 -----BEGIN CERTIFICATE-----
 MIIDXzCCAkegAwIBAgIUH3ypu1xG9RQhbajRKSmYMPtgj6cwDQYJKoZIhvcNAQEL
 BQAwLTETMBEGA1UECgwKQ0c0MDAyLUIxMzEWMBQGA1UEAwwNMTkyLjE2OC4xMzcu
@@ -19,3 +23,4 @@ memfODgM8rovZgPhIRnC0H7dno4n3oLB8PZ46wFk6VhsI7dDSoJuph44TCmGbrCR
 m2Wenp3/olkwwAUEIpkY8SDJ2vt66QcJaXcMz9aWlR/l0hEPYUlpiXoeOaZGl1Wr
 pNnl
 -----END CERTIFICATE-----
+)CERT";
