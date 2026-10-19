@@ -4,7 +4,8 @@
 The PL begins at conv1. Everything to the left of conv1 that training did, the
 PS has to do too, and this is it:
 
-    raw (T, C) float   m/s^2 and rad/s, as the nodes report them
+    raw (T, C) float   m/s^2 and rad/s, converted per sample from the
+                       nodes' int16 counts by sample()
       -> standardise   (x - mean) / std, per channel, from norm_stats.json
       -> transpose     (T, C) -> (C, T); qacnn.forward() transposes before
                        quant_input, and the PL never reorders
@@ -38,7 +39,10 @@ from pathlib import Path
 import numpy as np
 
 from description import Description
-from u96_config import BUILD_DIR, DESCRIPTION_GLOB, NORM_STATS_NAME, one
+from u96_config import (
+    ACCEL_LSB_PER_G, BUILD_DIR, DESCRIPTION_GLOB, GRAVITY_MS2, GYRO_LSB_PER_DPS,
+    NORM_STATS_NAME, one,
+)
 
 
 class Preprocess:
@@ -72,13 +76,59 @@ class Preprocess:
                 "different builds."
             )
 
+        self.si_scale = self._si_scale(self.channel_names)
+
         # quant_input: value = integer * 2**log2_scale, clamped.
         quant = self.desc.quant_input
         self.to_integer = quant.to_integer
         self.clamp_low = quant.clamp_low
         self.clamp_high = quant.clamp_high
 
+    @staticmethod
+    def _si_scale(channel_names):
+        """(C,) multiplier from int16 counts to SI, read off the channel names.
+
+        Names are <node>_<a|g><axis>, the same convention Postprocess reads its
+        accelerometer channels by. Built from the names rather than assumed
+        from a fixed order, so a reordered or renamed channel fails here
+        instead of being silently scaled as the wrong sensor.
+        """
+        accel = GRAVITY_MS2 / ACCEL_LSB_PER_G
+        gyro = np.pi / 180.0 / GYRO_LSB_PER_DPS
+        scale = []
+
+        for name in channel_names:
+            sensor = name.partition("_")[2]
+            if sensor.startswith("a"):
+                scale.append(accel)
+            elif sensor.startswith("g"):
+                scale.append(gyro)
+            else:
+                raise SystemExit(
+                    f"channel {name!r}: expected <node>_a<axis> or "
+                    "<node>_g<axis>; cannot tell which sensor's scale it takes."
+                )
+
+        return np.asarray(scale, dtype=np.float32)
+
     # --- the transform ------------------------------------------------------
+
+    def sample(self, counts):
+        """One (C,) sample of MPU int16 counts -> m/s^2 and rad/s.
+
+        Per sample, before WindowBuffer.push(), not per window: the raw window
+        feeds both standardise() and Postprocess.intensity(), and both expect
+        SI units. `counts` is in channel_names order.
+        """
+        c = np.asarray(counts, dtype=np.float32)
+
+        if c.shape != self.si_scale.shape:
+            raise SystemExit(
+                f"sample {c.shape}: expected {self.si_scale.shape}, one count "
+                "per channel in channel_names order."
+            )
+
+        return c * self.si_scale
 
     def standardise(self, raw):
         """(T, C) raw IMU -> (T, C) standardised, per channel.

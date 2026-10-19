@@ -201,6 +201,15 @@ PL_BUDGET_MS = 2.0
 # and thermal.py finds the device by name.
 IIO_ROOT = Path("/sys/bus/iio/devices")
 
+# --- preprocess.py ----------------------------------------------------------
+
+# MPU-6050 full-scale sensitivity the node firmware configures: ACCEL_CONFIG
+# (0x1C) = 0 is +/-2 g, GYRO_CONFIG (0x1B) = 0 is +/-250 deg/s. The nodes send
+# raw int16 counts; training saw m/s^2 and rad/s. If the firmware changes
+# either range these change with it, or every sample is mis-scaled.
+ACCEL_LSB_PER_G = 16384.0
+GYRO_LSB_PER_DPS = 131.0
+
 # --- postprocess.py ---------------------------------------------------------
 
 # Softmax probability a window must reach before it is allowed to emit an
