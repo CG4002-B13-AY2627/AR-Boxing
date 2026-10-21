@@ -78,6 +78,12 @@ set "SCRIPTS_DIR=%HERE%scripts"
 
 rem Kept in src\, shipped to the run root. See the note above.
 set "ROOT_FROM_SRC=template.py"
+
+rem The one src\ file outside callers import by name -- Comms' server loads
+rem the model through it. A run without it loads, verifies and benchmarks
+rem fine, and then fails only when the server starts, so its absence stops the
+rem transfer.
+set "API_FROM_SRC=classifier.py"
 if not defined U96_ENV set "U96_ENV=%HERE%.env"
 
 rem --- .env -------------------------------------------------------------------
@@ -269,6 +275,13 @@ rem --- host source ------------------------------------------------------------
 if not exist "!SRC_DIR!\" (
     echo ERROR: ultra-96\src is absent. 1>&2
     echo        It holds the PYNQ host code the board runs. 1>&2
+    exit /b 1
+)
+
+if not exist "!SRC_DIR!\!API_FROM_SRC!" (
+    echo ERROR: ultra-96\src\!API_FROM_SRC! is absent. 1>&2
+    echo        Comms imports the model through it; the server cannot start 1>&2
+    echo        without it. 1>&2
     exit /b 1
 )
 
