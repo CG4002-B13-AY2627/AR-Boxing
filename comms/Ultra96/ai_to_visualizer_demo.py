@@ -84,66 +84,35 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
 
 
 def run_model(args, hub, loop, action_map, attack_ids):
-    # PYNQ and its dependencies can request asyncio.get_event_loop() during
-    # import/Overlay construction. asyncio.to_thread() does not install one.
-    # Keep this worker-local loop distinct from the running WSS loop passed in.
-    worker_loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(worker_loop)
-    try:
-        return _run_model(args, hub, loop, action_map, attack_ids)
-    finally:
-        try:
-            worker_loop.run_until_complete(worker_loop.shutdown_asyncgens())
-        finally:
-            asyncio.set_event_loop(None)
-            worker_loop.close()
-
-
-def _run_model(args, hub, loop, action_map, attack_ids):
     # AI dependencies stay in the group's existing deployment directory.
-    # The FPGA driver is constructed and used only by this single worker.
+    # The Classifier owns the FPGA driver, so it is built and used only here.
     sys.path.insert(0, str(args.ai_dir / "src"))
     import numpy as np
-    from nn_driver import NNDriver
-    from postprocess import Postprocess
-    from preprocess import Preprocess
-    from window import WindowBuffer
+    from classifier import Classifier
 
-    try:
-        with NNDriver(run_dir=args.ai_dir) as nn:
-            pre = Preprocess(nn.build_dir, desc=nn.desc)
-            buffers = [WindowBuffer(nn.desc.window, nn.desc.channels) for _ in range(2)]
-            posts = [Postprocess(nn.desc, pre.channel_names) for _ in range(2)]
-            print(f"[MODEL] bitstream={nn.bitstream.name} contract={nn.desc}", flush=True)
-            print("[TEST] seeded random NOISE; predictions are not real punches", flush=True)
-            rng = np.random.default_rng(0)
-            windows = events = resolved = 0
-            started = time.perf_counter()
-            # Reproduce the supplied template's test stream and timestamps.
-            # This is deliberately offline noise, not a real-time sample grid.
-            for index in range(args.samples):
-                player = index % 2
-                sample = rng.standard_normal(nn.desc.channels).astype(np.float32) * 4.0
-                got = buffers[player].push(sample, index / buffers[0].rate)
-                if got is None:
-                    continue
-                raw, stamp = got
-                windows += 1
-                _, logits = nn.predict(pre.window(raw))
-                for event in posts[player].push(logits, raw, stamp):
-                    events += 1
-                    # This is the template's sink() handoff: a real Event object
-                    # crosses from the model worker to the same-process WSS loop.
-                    attack_id = attack_ids.next(player)
-                    future = asyncio.run_coroutine_threadsafe(
-                        send_ai_demo(hub, player, event, action_map,
-                                     args.demo_intensity, args.response_timeout_ms,
-                                     attack_id), loop)
-                    resolved += future.result(timeout=10) is not None
-            print(f"[DONE] {windows} windows, {events} AI events, "
-                  f"{resolved} resolved attacks, {time.perf_counter() - started:.2f}s", flush=True)
-    except SystemExit as exc:
-        raise RuntimeError(f"AI driver/configuration stopped: {exc}") from exc
+    with Classifier(args.ai_dir) as ai:
+        print(f"[MODEL] {ai}", flush=True)
+        print("[TEST] seeded random NOISE; predictions are not real punches", flush=True)
+        rng = np.random.default_rng(0)
+        events = resolved = 0
+        started = time.perf_counter()
+        # Reproduce the supplied template's test stream and timestamps.
+        # This is deliberately offline noise, not a real-time sample grid.
+        for index in range(args.samples):
+            player = index % 2
+            sample = rng.standard_normal(ai.channels).astype(np.float32) * 4.0
+            for event in ai.push(player, sample, index / ai.rate):
+                events += 1
+                # This is the template's sink() handoff: a real Event object
+                # crosses from the model worker to the same-process WSS loop.
+                attack_id = attack_ids.next(player)
+                future = asyncio.run_coroutine_threadsafe(
+                    send_ai_demo(hub, player, event, action_map,
+                                 args.demo_intensity, args.response_timeout_ms,
+                                 attack_id), loop)
+                resolved += future.result(timeout=10) is not None
+        print(f"[DONE] {ai.windows} windows, {events} AI events, "
+              f"{resolved} resolved attacks, {time.perf_counter() - started:.2f}s", flush=True)
 
 
 async def run_fake(args, hub, action_map, attack_ids):

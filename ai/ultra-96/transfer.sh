@@ -92,6 +92,11 @@ SCRIPTS_DIR="$HERE/scripts"
 # Kept in src/, shipped to the run root. See the note above.
 ROOT_FROM_SRC="template.py"
 
+# The one src/ file outside callers import by name -- Comms' server loads the
+# model through it. A run without it loads, verifies and benchmarks fine, and
+# then fails only when the server starts, so its absence stops the transfer.
+API_FROM_SRC="classifier.py"
+
 ENV_FILE="${U96_ENV:-$HERE/.env}"
 
 # --- .env -------------------------------------------------------------------
@@ -351,6 +356,13 @@ fi
 if [ ! -d "$SRC_DIR" ]; then
     echo "ERROR: ultra-96/src is absent." >&2
     echo "       It holds the PYNQ host code the board runs." >&2
+    exit 1
+fi
+
+if [ ! -f "$SRC_DIR/$API_FROM_SRC" ]; then
+    echo "ERROR: ultra-96/src/$API_FROM_SRC is absent." >&2
+    echo "       Comms imports the model through it; the server cannot start" >&2
+    echo "       without it." >&2
     exit 1
 fi
 
