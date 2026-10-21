@@ -15,6 +15,7 @@ All multi-byte integers are little-endian.
   0x02  SENSOR_DATA     22    player, node, timestamp (uint32), accel x3, gyro x3 (int16)
   0x03  HEARTBEAT        6    player id, node id
   0x04  HEARTBEAT_ACK    5    session id                       (layout not in the report; defined here)
+  0x05  SYNC_SENSOR     26    player, node, right-clock uint32 ms, 6 int16 axes, uint32 sync epoch
   0x10  ACTUATE          7    node id, command (1 start / 0 stop), duration ms (0-255)
   0x1F  DISCONNECT       6    player id, node id               (layout not in the report; defined here)
 """
@@ -32,10 +33,12 @@ HANDSHAKE_ACK = 0x01
 SENSOR_DATA = 0x02
 HEARTBEAT = 0x03
 HEARTBEAT_ACK = 0x04
+SYNC_SENSOR = 0x05  # fw4: common gateway clock + synchronization epoch
 ACTUATE = 0x10
 DISCONNECT = 0x1F
 
 NAMES = {
+    SYNC_SENSOR: "SYNC_SENSOR",
     HANDSHAKE: "HANDSHAKE", HANDSHAKE_ACK: "HANDSHAKE_ACK", SENSOR_DATA: "SENSOR_DATA",
     HEARTBEAT: "HEARTBEAT", HEARTBEAT_ACK: "HEARTBEAT_ACK", ACTUATE: "ACTUATE",
     DISCONNECT: "DISCONNECT",
@@ -43,6 +46,7 @@ NAMES = {
 
 # Total packet length in bytes, start byte and footer included.
 LENGTHS = {
+    SYNC_SENSOR: 26,
     HANDSHAKE: 7, HANDSHAKE_ACK: 9, SENSOR_DATA: 22, HEARTBEAT: 6,
     HEARTBEAT_ACK: 5, ACTUATE: 7, DISCONNECT: 6,
 }
@@ -97,6 +101,9 @@ def decode(ptype, payload):
         return dict(player=p, node=n, fw=fw)
     if ptype == HANDSHAKE_ACK:
         return dict(session=payload[0], server_time=struct.unpack('<I', payload[1:5])[0])
+    if ptype == SYNC_SENSOR:
+        p, n, ts, ax, ay, az, gx, gy, gz, epoch = struct.unpack('<BBI6hI', payload)
+        return dict(player=p, node=n, timestamp=ts, accel=(ax,ay,az), gyro=(gx,gy,gz), epoch=epoch)
     if ptype == SENSOR_DATA:
         p, n, ts, ax, ay, az, gx, gy, gz = struct.unpack('<BBI3h3h', payload)
         return dict(player=p, node=n, timestamp=ts, accel=(ax, ay, az), gyro=(gx, gy, gz))

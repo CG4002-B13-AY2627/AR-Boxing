@@ -25,7 +25,15 @@ from game_engine import GameEngine
 from visualizer_protocol import MAX_MESSAGE_BYTES, PUNCHES, PhoneHub, periodic_states
 
 
-DEFAULT_ACTION_MAP = {"l_hook": "LEFT_HOOK", "r_hook": "RIGHT_HOOK"}
+# Default boxing convention: left straight -> JAB, right straight -> CROSS.
+# Confirm stance with the team; --action-map can override either mapping.
+DEFAULT_ACTION_MAP = {
+    "l_straight": "JAB", "r_straight": "CROSS",
+    "l_hook": "LEFT_HOOK", "r_hook": "RIGHT_HOOK",
+    "l_uppercut": "LEFT_UPPERCUT", "r_uppercut": "RIGHT_UPPERCUT",
+}
+IGNORED_AI_ACTIONS = frozenset({"idle"})
+UNIMPLEMENTED_AI_ACTIONS = frozenset({"weave", "pickup", "use"})
 
 
 @dataclass(frozen=True)
@@ -59,9 +67,32 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
     print(f"[AI RAW] player={player} action={event.action} "
           f"sample_t={event.t:.3f}s confidence={event.confidence:.3f} "
           f"intensity={event.intensity:.3f} m/s^2 edge={event.edge}", flush=True)
+    if event.action in IGNORED_AI_ACTIONS:
+        print(f"[AI IGNORE] {event.action}: no game action", flush=True)
+        return None
+    if event.action in UNIMPLEMENTED_AI_ACTIONS:
+        print(f"[AI UNSUPPORTED] {event.action}: current GameEngine has no handler; "
+              "no punch/guard invented", flush=True)
+        return None
+    if event.action == "block":
+        if event.edge not in ("start", "end"):
+            raise ValueError("block needs edge='start' or 'end'")
+        if attack_id is None:
+            raise ValueError("a stable action ID is required for block events")
+        duplicate = attack_id in hub.guard_actions
+        final = await hub.request_guard(
+            player + 1, active=event.edge == "start",
+            confidence=float(event.confidence), guard_id=attack_id)
+        if final is None:
+            print(f"[AI GUARD REJECTED] P{player + 1} {event.edge} id={attack_id}", flush=True)
+        else:
+            label = "AI GUARD CACHED" if duplicate else "AI GUARD"
+            print(f"[{label}] P{player + 1} {event.edge} id={attack_id} "
+                  f"seq={final['seq']}; MatchState carries is_blocking", flush=True)
+        return final
     punch = action_map.get(event.action)
     if event.edge is not None or punch is None:
-        print("[AI SKIP] sustained/unmapped action; no punch invented", flush=True)
+        print(f"[AI SKIP] {event.action}: unmapped or invalid punch edge; no punch invented", flush=True)
         return None
     if attack_id is None:
         raise ValueError("a stable attack_id is required for each AI event")
@@ -112,7 +143,7 @@ def run_model(args, hub, loop, action_map, attack_ids):
                                  attack_id), loop)
                 resolved += future.result(timeout=10) is not None
         print(f"[DONE] {ai.windows} windows, {events} AI events, "
-              f"{resolved} resolved attacks, {time.perf_counter() - started:.2f}s", flush=True)
+              f"{resolved} resolved actions, {time.perf_counter() - started:.2f}s", flush=True)
 
 
 async def run_fake(args, hub, action_map, attack_ids):
@@ -125,7 +156,8 @@ async def run_fake(args, hub, action_map, attack_ids):
             print(f"[FAKE GUARD] P{3 - args.fake_player} "
                   f"{'started' if guard else 'rejected'} id={guard_id}", flush=True)
         action = "FAKE_PUNCH" if args.fake_punch else args.fake_action
-        event = FakeAiEvent(action, time.monotonic(), args.fake_confidence)
+        event = FakeAiEvent(action, time.monotonic(), args.fake_confidence,
+                            edge=getattr(args, "fake_edge", None))
         attack_id = attack_ids.next(player)
         final = await send_ai_demo(hub, player, event, action_map,
                                    args.demo_intensity, args.response_timeout_ms,
@@ -327,7 +359,8 @@ async def main(args):
     if args.source == "fake":
         if args.fake_punch:
             action_map["FAKE_PUNCH"] = args.fake_punch
-        elif args.fake_action not in action_map:
+        elif (args.fake_action not in action_map and
+              args.fake_action not in IGNORED_AI_ACTIONS | UNIMPLEMENTED_AI_ACTIONS | {"block"}):
             raise ValueError(f"fake action {args.fake_action!r} is not in the action map")
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     ctx.minimum_version = ssl.TLSVersion.TLSv1_2
@@ -403,7 +436,9 @@ if __name__ == "__main__":
     parser.add_argument("--fake-player", type=int, choices=(1, 2), default=1,
                         help="attacking phone slot for fake source")
     parser.add_argument("--fake-action", default="l_hook",
-                        help="AI label to inject; must appear in the action map")
+                        help="AI label to inject; block also requires --fake-edge")
+    parser.add_argument("--fake-edge", choices=("start", "end"),
+                        help="postprocess edge for --fake-action block")
     parser.add_argument("--fake-punch", choices=sorted(PUNCHES),
                         help="protocol punch for synthetic testing, bypassing AI label mapping")
     parser.add_argument("--fake-confidence", type=float, default=0.95)
@@ -421,6 +456,8 @@ if __name__ == "__main__":
                         help="close WSS after injections; otherwise wait for Ctrl+C")
     args = parser.parse_args()
     args.ai_dir = args.ai_dir.expanduser().resolve()
+    if args.source == "fake" and not args.fake_punch and args.fake_action == "block" and args.fake_edge is None:
+        parser.error("--fake-action block requires --fake-edge start or end")
     if (args.samples < 1 or not 0 <= args.demo_intensity <= 1 or
             not 0 <= args.fake_confidence <= 1 or args.fake_count < 1 or
             args.fake_interval < 0 or args.start_delay < 0 or
