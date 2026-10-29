@@ -14,6 +14,8 @@ import asyncio
 import concurrent.futures
 import contextlib
 import json
+import math
+import os
 from pathlib import Path
 import queue
 import signal
@@ -27,8 +29,21 @@ import protocol as P
 import websockets
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES
-from ai_to_visualizer_demo import send_ai_demo, AttackIds, DEFAULT_ACTION_MAP
-from live_alignment import Aligner, CHANNELS
+from classified_actions import send_classified_action, AttackIds, DEFAULT_ACTION_MAP
+from contract_validation import contracts_directory
+from server_runtime import serve_phones
+
+# Keep --help and read-only dashboard tests usable without board-only alignment code.
+Aligner = CHANNELS = None
+
+
+def load_alignment():
+    global Aligner, CHANNELS
+    try:
+        from live_alignment import Aligner as aligner, CHANNELS as channels
+    except ImportError as error:
+        raise RuntimeError('Live hardware gate: restore live_alignment.py with Aligner and CHANNELS before starting ESP input') from error
+    Aligner, CHANNELS = aligner, channels
 
 # Deliberately a NEW frame type: old timestamps must never silently enter AI.
 SYNC_SENSOR = P.SYNC_SENSOR
@@ -42,6 +57,9 @@ def sensor_si_scale(channel_names):
     """
     import numpy as np
 
+    if CHANNELS is None:
+        load_alignment()
+
     if list(channel_names) != CHANNELS:
         raise RuntimeError('Sensor conversion requires the fw4 l_* then r_* channels')
     accel = 9.80665 / 16384.0
@@ -53,6 +71,9 @@ def sensor_si_scale(channel_names):
 def validate_model_norm(pre, build_dir, norm_name):
     """Validate the selected build's own stats and the values actually loaded."""
     import numpy as np
+
+    if CHANNELS is None:
+        load_alignment()
 
     path = (Path(build_dir) / norm_name).resolve()
     stats = json.loads(path.read_text())
@@ -107,7 +128,7 @@ class Pipeline:
             return
         if self.hub.engine.phase != 'FIGHTING':
             return
-        task = asyncio.create_task(send_ai_demo(
+        task = asyncio.create_task(send_classified_action(
             self.hub, player-1, event, DEFAULT_ACTION_MAP,
             self.args.demo_intensity, 750, self.ids.next(player-1)))
         self.pending.add(task)
@@ -286,26 +307,26 @@ class GatewayServer:
 # Read-only dashboard. HTTP is bound to loopback and accessed through SSH.
 from collections import deque
 
-DASHBOARD_HTML = r'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AR Boxing · Integration Monitor</title>
+DASHBOARD_HTML = r'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AR Boxing Â· Integration Monitor</title>
 <style>
 :root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#182535;background:#f3f6fa;font-synthesis:none}*{box-sizing:border-box}body{margin:0}main{max-width:1180px;margin:auto;padding:36px 28px}header{display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:29px;letter-spacing:-1px;margin:8px 0}.eyebrow{font-size:12px;font-weight:700;color:#526c92;letter-spacing:2px}.sub,small{color:#64748b}small{font-size:12px}.banner{background:#e9f7ef;color:#186642;border:1px solid #c3e8d2;border-radius:10px;padding:10px 14px;font-size:13px}.banner.off{background:#fff0ef;color:#ae342a;border-color:#f2c9c5}.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:26px 0 20px}.metric,.player,.panel{background:white;border:1px solid #dee5ee;border-radius:14px;padding:20px}.metric label{color:#64748b;font-size:12px;display:block}.value{font-size:26px;font-weight:650;margin:9px 0 3px;letter-spacing:-.6px}.players{display:grid;grid-template-columns:1fr 1fr;gap:20px}.ptop{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}h2{font-size:18px;margin:0}h3{font-size:14px;margin:0 0 12px}.optional{font-size:11px;color:#64748b;background:#f1f4f8;padding:5px 9px;border-radius:20px}.row{display:grid;grid-template-columns:1fr auto;gap:7px;padding:13px 0;border-top:1px solid #edf1f5}.row strong{font-size:13px;font-weight:600}.detail{font-size:12px;color:#718096;grid-column:1/-1;line-height:1.5}.badge{font-size:11px;border-radius:20px;padding:4px 9px;white-space:nowrap;align-self:start}.good{background:#e7f7ee;color:#18784b}.warn{background:#fff3da;color:#90620e}.bad{background:#ffedeb;color:#ad392c}.neutral{background:#edf1f6;color:#67788f}.prediction{background:#f4f7fc;padding:14px;border-radius:9px;margin-top:10px;font-size:13px;line-height:1.65}.panel{margin-top:20px}.meta{display:grid;gap:9px;font-family:ui-monospace,Consolas,monospace;font-size:12px;overflow-wrap:anywhere}.events{list-style:none;padding:0;margin:0;font-size:12px;color:#596b80}.events li{padding:8px 0;border-top:1px solid #edf1f5;overflow-wrap:anywhere}.note{font-size:12px;line-height:1.7;color:#6b7c90;margin-top:20px}.sub{font-size:13px;line-height:1.6}footer{margin-top:20px;font-size:11px;color:#8090a2}@media(max-width:760px){main{padding:22px 16px}header{display:block}.banner{margin-top:14px}.metrics{grid-template-columns:1fr 1fr}.players{grid-template-columns:1fr}h1{font-size:25px}}
-</style><main><header><div><div class="eyebrow">CG4002 · GROUP B13</div><h1>Integration monitor</h1><div class="sub">Phone connections, hand data and FPGA progress · refreshes every second</div></div><div id="connection" class="banner">Connecting to dashboard…</div></header><div id="content"><div class="panel sub">Waiting for the first server snapshot.</div></div><footer id="updated">Read-only diagnostics · no game controls</footer></main>
+</style><main><header><div><div class="eyebrow">CG4002 Â· GROUP B13</div><h1>Integration monitor</h1><div class="sub">Phone connections, hand data and FPGA progress Â· refreshes every second</div></div><div id="connection" class="banner">Connecting to dashboardâ€¦</div></header><div id="content"><div class="panel sub">Waiting for the first server snapshot.</div></div><footer id="updated">Read-only diagnostics Â· no game controls</footer></main>
 <script>
 const el=(tag,text,cls)=>{let n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 const age=x=>x===null?'not received':x<1?'< 1 s ago':x.toFixed(1)+' s ago';
 function row(title,status,detail){let n=el('div',undefined,'row');n.append(el('strong',title),el('span',status.text,'badge '+status.tone),el('div',detail,'detail'));return n}
 function render(s){const root=document.getElementById('content');root.replaceChildren();let metrics=el('section',undefined,'metrics');
-for(let [label,value,detail] of [['MATCH',s.game,'HP / stamina come from the server'],['PAIRED INPUT',s.pair_rate.toFixed(1)+' /s','left + right aligned samples'],['FPGA INFERENCE',s.inference_rate.toFixed(1)+' /s',s.counts.inferences+' completed · '+s.mode],['DATA DROPS',String(s.counts.queue_drops+s.counts.stale_drops+s.counts.event_drops),'queue / stale / event totals']]){let n=el('div',undefined,'metric');n.append(el('label',label),el('div',value,'value'),el('small',detail));metrics.append(n)}root.append(metrics);
+for(let [label,value,detail] of [['MATCH',s.game,'Round '+s.round_time.toFixed(1)+' s · '+(s.phase_remaining_ms>0?'phase '+(s.phase_remaining_ms/1000).toFixed(1)+' s':s.match_result)],['PAIRED INPUT',s.pair_rate.toFixed(1)+' /s','left + right aligned samples'],['FPGA INFERENCE',s.inference_rate.toFixed(1)+' /s',s.counts.inferences+' completed Â· '+s.mode],['DATA DROPS',String(s.counts.queue_drops+s.counts.stale_drops+s.counts.event_drops),'queue / stale / event totals']]){let n=el('div',undefined,'metric');n.append(el('label',label),el('div',value,'value'),el('small',detail));metrics.append(n)}root.append(metrics);
 let players=el('section',undefined,'players');for(let p of s.players){let card=el('article',undefined,'player'),top=el('div',undefined,'ptop');top.append(el('h2','Player '+p.id));if(p.optional)top.append(el('span','OPTIONAL SLOT','optional'));card.append(top);
-card.append(row('AR phone',p.phone,p.phone_detail),row('Right ESP gateway',p.gateway,p.gateway_detail));
-for(let h of p.hands)card.append(row(h.name+' hand data',h.status,h.rate.toFixed(1)+' samples/s · last '+age(h.age)+' · '+h.total+' received'));
-card.append(row('Aligned hand pairs',p.pairing,'Last '+age(p.pair_age)+' · '+p.pairs+' pairs · '+p.align_resets+' alignment resets · '+p.discarded+' discarded'));
-let pred=p.prediction;card.append(el('div',pred?'Latest prediction: '+pred.label+' · '+(pred.confidence*100).toFixed(1)+'% · '+age(pred.age)+'\nHP '+p.hp+' · stamina '+p.stamina:'No prediction yet · '+(s.mode==='inspect'?'inspect mode does not run inference':'waiting for a complete input window'),'prediction'));players.append(card)}root.append(players);
-let panel=el('section',undefined,'panel');panel.append(el('h3','Model & pipeline'));let meta=el('div',undefined,'meta');for(let text of ['AI directory: '+s.ai_dir,'Model: '+(s.model||'not available'),'Normalization: '+(s.norm_path||'not available'),'Worker: '+(s.worker_error?'ERROR — '+s.worker_error:s.worker_alive?'running':'stopped'),'Windows: '+s.counts.windows+' · AI events: '+s.counts.events+' · stream resets: '+s.counts.resets,'WSS sockets: '+s.phone_sockets+' · joined phones: '+s.joined_phones+' / '+s.required_phones])meta.append(el('div',text));panel.append(meta);root.append(panel);
-let events=el('section',undefined,'panel');events.append(el('h3','Recent connection events'));let list=el('ul',undefined,'events');for(let event of s.events)list.append(el('li',event.at+' · '+event.message));if(!s.events.length)list.append(el('li','No connection events yet.'));events.append(list);root.append(events);
+card.append(row('AR phone',p.phone,p.phone_detail),row('Match readiness',{text:p.ready?'Acknowledged':'Waiting',tone:p.ready?'good':'neutral'},'HP '+p.hp+' · stamina '+p.stamina+' · guard '+(p.is_blocking?'ON':'off')),row('Health pack',{text:p.pickup_pending?'Checking':p.active_item?'Available':'None',tone:p.active_item?'good':'neutral'},p.active_item?'Expires in '+(p.active_item.remaining_ms/1000).toFixed(1)+' fighting seconds':'Automatic spawn every 30 fighting seconds'),row('Right ESP gateway',p.gateway,p.gateway_detail));
+for(let h of p.hands)card.append(row(h.name+' hand data',h.status,h.rate.toFixed(1)+' samples/s Â· last '+age(h.age)+' Â· '+h.total+' received'));
+card.append(row('Aligned hand pairs',p.pairing,'Last '+age(p.pair_age)+' Â· '+p.pairs+' pairs Â· '+p.align_resets+' alignment resets Â· '+p.discarded+' discarded'));
+let pred=p.prediction;card.append(el('div',pred?'Latest prediction: '+pred.label+' Â· '+(pred.confidence*100).toFixed(1)+'% Â· '+age(pred.age)+'\nHP '+p.hp+' Â· stamina '+p.stamina:'No prediction yet Â· '+(s.mode==='inspect'?'inspect mode does not run inference':'waiting for a complete input window'),'prediction'));players.append(card)}root.append(players);
+let panel=el('section',undefined,'panel');panel.append(el('h3','Model & pipeline'));let meta=el('div',undefined,'meta');for(let text of ['Match: '+s.match_id+' · stream: '+s.stream_id,'Pending attacks: '+s.pending_attacks+' · pickup checks: '+s.pending_pickups,'AI directory: '+s.ai_dir,'Model: '+(s.model||'not available'),'Normalization: '+(s.norm_path||'not available'),'Worker: '+(s.worker_error?'ERROR â€” '+s.worker_error:s.worker_alive?'running':'stopped'),'Windows: '+s.counts.windows+' Â· AI events: '+s.counts.events+' Â· stream resets: '+s.counts.resets,'WSS sockets: '+s.phone_sockets+' Â· joined phones: '+s.joined_phones+' / '+s.required_phones])meta.append(el('div',text));panel.append(meta);root.append(panel);
+let events=el('section',undefined,'panel');events.append(el('h3','Recent connection events'));let list=el('ul',undefined,'events');for(let event of s.events)list.append(el('li',event.at+' Â· '+event.message));if(!s.events.length)list.append(el('li','No connection events yet.'));events.append(list);root.append(events);
 root.append(el('div','Green hand data means samples arrived within 2 seconds. A gateway connection alone does not prove that both hands are sending. Rates use a rolling 2-second window; counters are cumulative. Pairing is inferred from aligned sample delivery, not a direct ESP sync-valid flag. An idle prediction is normal. ESP real/simulated input is selected in firmware.','note'));
-document.getElementById('updated').textContent='Last snapshot '+new Date(s.timestamp*1000).toLocaleTimeString()+' · server uptime '+Math.floor(s.uptime)+' s · read-only diagnostics';}
-async function poll(){let box=document.getElementById('connection');try{let r=await fetch('/api/status',{cache:'no-store',signal:AbortSignal.timeout(3000)});if(!r.ok)throw Error('HTTP '+r.status);render(await r.json());box.textContent='Dashboard connected';box.className='banner'}catch(e){box.textContent='Dashboard unreachable — check server / SSH tunnel. Values below are stale.';box.className='banner off'}setTimeout(poll,1000)}poll();
+document.getElementById('updated').textContent='Last snapshot '+new Date(s.timestamp*1000).toLocaleTimeString()+' Â· server uptime '+Math.floor(s.uptime)+' s Â· read-only diagnostics';}
+async function poll(){let box=document.getElementById('connection');try{let r=await fetch('/api/status',{cache:'no-store',signal:AbortSignal.timeout(3000)});if(!r.ok)throw Error('HTTP '+r.status);render(await r.json());box.textContent='Dashboard connected';box.className='banner'}catch(e){box.textContent='Dashboard unreachable â€” check server / SSH tunnel. Values below are stale.';box.className='banner off'}setTimeout(poll,1000)}poll();
 </script></html>'''
 
 
@@ -356,6 +377,7 @@ class Dashboard:
     def snapshot(self):
         now = self.clock()
         c = dict(self.pipeline.counts)
+        match = self.hub.engine.snapshot()  # read only: HTTP polling never advances the match
         # Keep the history independent of how many browsers poll the page.
         if now-self.history[-1][0] >= .2:
             self.history.append((now,c['pairs'],c['inferences']))
@@ -369,7 +391,11 @@ class Dashboard:
             optional = self.args.wait_players == 1 and p == 2
             if p in self.hub.ready:
                 phone = self.badge('Joined','good')
-                detail = 'ClientHello accepted; receives server events and state'
+                phase = match['state']
+                acknowledged = match[f'player_{p}']['ready']
+                action = {'LOBBY':'Ready', 'CALIBRATING':'Calibrated', 'PAUSED':'Resume'}.get(phase)
+                detail = (f'{action} acknowledged; waiting for opponent' if acknowledged else
+                          f'Waiting for {action} from this phone') if action else f'Registered; authority phase {phase}'
             elif p in self.hub.active:
                 phone = self.badge('Joining','warn')
                 detail = 'Player slot claimed; waiting for handshake completion'
@@ -397,15 +423,22 @@ class Dashboard:
             pred = self.pipeline.dashboard_predictions.get(p)
             if pred:
                 pred = dict(label=pred[1],confidence=pred[2],age=max(0,now-pred[0]))
-            state = self.hub.engine.players[p]
+            state = match[f'player_{p}']
             players.append(dict(id=p,optional=optional,phone=phone,phone_detail=detail,
                 gateway=self.badge('Connected','good') if online else self.badge('Disconnected','neutral' if optional else 'bad'),
                 gateway_detail='TLS handshake complete on port 8888' if online else 'No active fw4 TLS gateway session',
                 hands=hands,pairing=pairing,pair_age=pair_age,
                 pairs=align.pairs if align else 0,align_resets=align.resets if align else 0,
                 discarded=align.drops if align else 0,prediction=pred,
-                hp=round(state.health,2),stamina=round(state.stamina,2)))
+                hp=round(state['health'],2),stamina=round(state['stamina'],2),
+                connected=state['connected'],ready=state['ready'],is_blocking=state['is_blocking'],
+                active_item=next((item for item in match['active_items'] if item['owner_player']==p),None),
+                pickup_pending=p in self.hub.pending_pickups))
         return dict(timestamp=time.time(),uptime=max(0,now-self.started),game=self.hub.engine.phase,
+            match_id=self.hub.match_id,stream_id=self.hub.stream_id,
+            round_time=match['round_time'],phase_remaining_ms=match['phase_remaining_ms'],
+            match_result=match['match_result'],active_items=match['active_items'],
+            pending_attacks=len(self.hub.pending),pending_pickups=len(self.hub.pending_pickups),
             mode=self.args.mode,ai_dir=str(self.args.ai_dir),model=self.pipeline.dashboard_model,
             norm_path=self.pipeline.dashboard_norm,counts=c,players=players,
             pair_rate=max(0,(c['pairs']-pairs)/dt),inference_rate=max(0,(c['inferences']-inferences)/dt),
@@ -452,11 +485,18 @@ class Dashboard:
 
 
 async def main(args):
+    os.environ['CG4002_CONTRACTS_DIR'] = str(contracts_directory(args.contracts_dir))
+    load_alignment()
     stop = asyncio.Event()
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
-        loop.add_signal_handler(sig, stop.set)
-    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds), required_players=args.wait_players)
+        try:
+            loop.add_signal_handler(sig, stop.set)
+        except NotImplementedError:  # Windows diagnostics; board uses asyncio signal handlers
+            pass
+    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds,
+        required_players=args.wait_players, countdown_seconds=args.countdown_seconds,
+        spawn_seconds=args.spawn_seconds), required_players=args.wait_players)
     pipeline = Pipeline(args, hub, loop)
     pipeline.thread.start()
     while not pipeline.ready.is_set():
@@ -480,8 +520,7 @@ async def main(args):
                 monitor.handle, args.dashboard_host, args.dashboard_port, limit=8192)
             print(f'[DASHBOARD] http://{args.dashboard_host}:{args.dashboard_port} (forward this port through SSH)', flush=True)
         async with await asyncio.start_server(gateways.handle, args.host, 8888, ssl=tls) as esp:
-            async with websockets.serve(monitor.phone_handle, args.host, 8889, ssl=tls,
-                                        max_size=MAX_MESSAGE_BYTES, close_timeout=2):
+            async with serve_phones(hub, args, handler=monitor.phone_handle):
                 tick = asyncio.create_task(periodic_states(hub))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
                 previous_pairs = previous_windows = 0
@@ -518,9 +557,7 @@ async def main(args):
         for task in tuple(pipeline.pending):
             task.cancel()
         await asyncio.gather(*pipeline.pending, return_exceptions=True)
-        for task in tuple(hub.resolver_tasks):
-            task.cancel()
-        await asyncio.gather(*hub.resolver_tasks, return_exceptions=True)
+        await hub.close()
         for writer in tuple(gateways.writers):
             writer.close()
         with contextlib.suppress(asyncio.TimeoutError):
@@ -540,9 +577,14 @@ if __name__ == '__main__':
     parser.add_argument('--ai-dir', type=Path, default=Path('/home/xilinx/ai/integration-check'))
     parser.add_argument('--cert', type=Path, default=here / 'server.crt')
     parser.add_argument('--key', type=Path, default=here / 'server.key')
+    parser.add_argument('--phone-cert', type=Path, default=here.parent / '.local-certs/server.crt')
+    parser.add_argument('--phone-key', type=Path, default=here.parent / '.local-certs/server.key')
+    parser.add_argument('--contracts-dir', type=Path, help='Matching protocol-v2 schemas from CG4002-Viz/contracts')
     parser.add_argument('--host', default='0.0.0.0')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
     parser.add_argument('--round-seconds', type=float, default=90)
+    parser.add_argument('--countdown-seconds', type=float, default=3)
+    parser.add_argument('--spawn-seconds', type=float, default=30)
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     parser.add_argument('--dashboard-host', default='127.0.0.1')
@@ -554,7 +596,9 @@ if __name__ == '__main__':
         parser.error(f'AI source directory not found: {args.ai_dir / "src"}')
     if not 1 <= args.dashboard_port <= 65535 or args.dashboard_port in (8888,8889):
         parser.error('dashboard port must be 1..65535 and different from 8888/8889')
-    if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
+    if (any(not math.isfinite(value) or value <= 0 for value in
+            (args.round_seconds,args.countdown_seconds,args.spawn_seconds)) or
+            args.countdown_seconds > 600 or not 0 <= args.demo_intensity <= 1):
         parser.error('invalid round duration/intensity')
     try:
         asyncio.run(main(args))

@@ -1,0 +1,11 @@
+[
+  {"at":1,"player":1,"action":"punch","punch":"JAB"},
+  {"at":2,"player":2,"action":"guard"},
+  {"at":2.1,"player":1,"action":"punch","punch":"CROSS"},
+  {"at":3.2,"player":2,"action":"punch","punch":"LEFT_HOOK"},
+  {"at":4,"player":1,"action":"pickup"},
+  {"at":4.1,"player":2,"action":"pickup"},
+  {"at":5,"player":1,"action":"punch","punch":"RIGHT_HOOK"},
+  {"at":6,"player":2,"action":"punch","punch":"LEFT_UPPERCUT"},
+  {"at":7.2,"player":1,"action":"punch","punch":"RIGHT_UPPERCUT"}
+]
