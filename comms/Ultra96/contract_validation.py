@@ -6,17 +6,29 @@ from pathlib import Path
 from functools import lru_cache
 from jsonschema import Draft202012Validator
 
+SCHEMA_NAMES = (
+    "client-hello", "server-welcome", "player-command", "punch-attempt",
+    "punch-observation", "pickup-check", "pickup-observation", "pickup-result",
+    "game-event", "match-state",
+)
+
 
 def contracts_directory(explicit=None):
     configured = explicit or os.environ.get("CG4002_CONTRACTS_DIR")
     root = Path(__file__).resolve().parents[2]
     candidates = [Path(configured)] if configured else [
+        Path(__file__).resolve().parent.parent / "contracts",
         root.parent / "CG4002-Viz" / "contracts", root / "CG4002-Viz" / "contracts"]
+    failures = []
     for path in candidates:
-        if all((path / (name + ".schema.json")).is_file() for name in (
-                "client-hello", "player-command", "pickup-observation", "punch-observation")):
+        path = path.expanduser().resolve()
+        missing = [name + ".schema.json" for name in SCHEMA_NAMES
+                   if not (path / (name + ".schema.json")).is_file()]
+        if not missing:
             return path
-    raise RuntimeError("Matching v2 contracts are required; set CG4002_CONTRACTS_DIR or --contracts-dir")
+        failures.append(str(path) + ": missing " + ", ".join(missing))
+    raise RuntimeError("Matching v2 contracts are required. Deploy the complete comms/contracts directory "
+                       "or set --contracts-dir/CG4002_CONTRACTS_DIR to it. Checked:\n" + "\n".join(failures))
 
 
 def _pairs(pairs):

@@ -1,0 +1,338 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cg4002-b13.local/schemas/v2/game-event.schema.json",
+  "title": "GameEvent v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "protocol_version",
+    "match_id",
+    "stream_id",
+    "seq",
+    "timestamp",
+    "event",
+    "source_player",
+    "target_player",
+    "punch",
+    "confidence",
+    "intensity",
+    "outcome",
+    "damage"
+  ],
+  "properties": {
+    "type": {
+      "const": "GameEvent"
+    },
+    "protocol_version": {
+      "const": 2
+    },
+    "match_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "stream_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "seq": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "timestamp": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "event": {
+      "type": "string",
+      "enum": [
+        "PUNCH",
+        "GUARD",
+        "WEAVE",
+        "ITEM_PICKUP",
+        "ROUND_TRANSITION"
+      ]
+    },
+    "source_player": {
+      "$ref": "#/$defs/player_id"
+    },
+    "target_player": {
+      "$ref": "#/$defs/player_id"
+    },
+    "punch": {
+      "$ref": "#/$defs/optional_punch"
+    },
+    "confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "intensity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "outcome": {
+      "type": "string",
+      "enum": [
+        "HIT",
+        "BLOCK",
+        "MISS",
+        "NONE"
+      ]
+    },
+    "damage": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "attack_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "request_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "item_id": {
+      "$ref": "#/$defs/identifier"
+    },
+    "item_type": {
+      "$ref": "#/$defs/item_type"
+    },
+    "hand": {
+      "type": "string",
+      "enum": [
+        "LEFT",
+        "RIGHT"
+      ]
+    },
+    "magnitude": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "effect_duration_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 120000
+    }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "player_id": {
+      "type": "integer",
+      "enum": [
+        1,
+        2
+      ]
+    },
+    "optional_punch": {
+      "type": "string",
+      "enum": [
+        "",
+        "JAB",
+        "CROSS",
+        "LEFT_HOOK",
+        "RIGHT_HOOK",
+        "LEFT_UPPERCUT",
+        "RIGHT_UPPERCUT"
+      ]
+    },
+    "punch": {
+      "type": "string",
+      "enum": [
+        "JAB",
+        "CROSS",
+        "LEFT_HOOK",
+        "RIGHT_HOOK",
+        "LEFT_UPPERCUT",
+        "RIGHT_UPPERCUT"
+      ]
+    },
+    "item_type": {
+      "type": "string",
+      "enum": [
+        "HEALTH",
+        "STAMINA",
+        "ATTACK_MULTIPLIER"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "PUNCH"
+          }
+        },
+        "required": [
+          "event"
+        ]
+      },
+      "then": {
+        "required": [
+          "attack_id"
+        ],
+        "properties": {
+          "punch": {
+            "$ref": "#/$defs/punch"
+          },
+          "outcome": {
+            "enum": [
+              "HIT",
+              "BLOCK",
+              "MISS"
+            ]
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "punch": {
+            "const": ""
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "MISS"
+          }
+        },
+        "required": [
+          "outcome"
+        ]
+      },
+      "then": {
+        "properties": {
+          "damage": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "ITEM_PICKUP"
+          }
+        },
+        "required": [
+          "event"
+        ]
+      },
+      "then": {
+        "required": [
+          "request_id",
+          "item_id",
+          "item_type",
+          "hand",
+          "magnitude",
+          "effect_duration_ms"
+        ],
+        "properties": {
+          "outcome": {
+            "const": "NONE"
+          },
+          "damage": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "ITEM_PICKUP"
+          },
+          "item_type": {
+            "enum": [
+              "HEALTH",
+              "STAMINA"
+            ]
+          }
+        },
+        "required": [
+          "event",
+          "item_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "magnitude": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "effect_duration_ms": {
+            "const": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "ITEM_PICKUP"
+          },
+          "item_type": {
+            "const": "ATTACK_MULTIPLIER"
+          }
+        },
+        "required": [
+          "event",
+          "item_type"
+        ]
+      },
+      "then": {
+        "properties": {
+          "magnitude": {
+            "type": "number",
+            "exclusiveMinimum": 1,
+            "maximum": 3
+          },
+          "effect_duration_ms": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120000
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "enum": [
+              "GUARD",
+              "WEAVE",
+              "ROUND_TRANSITION"
+            ]
+          }
+        },
+        "required": [
+          "event"
+        ]
+      },
+      "then": {
+        "properties": {
+          "outcome": {
+            "const": "NONE"
+          },
+          "damage": {
+            "const": 0
+          }
+        }
+      }
+    }
+  ],
+  "description": "Transient authoritative feedback. Health and stamina converge only through MatchState. ITEM_PICKUP magnitude is actual HP gained, including zero at full health."
+}

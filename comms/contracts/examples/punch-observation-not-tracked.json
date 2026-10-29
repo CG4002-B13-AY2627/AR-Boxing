@@ -1,0 +1,10 @@
+{
+  "type": "PunchObservation",
+  "protocol_version": 2,
+  "match_id": "match-demo-001",
+  "stream_id": "ultra96-boot-001",
+  "attack_id": "attack-000574",
+  "observer_player": 2,
+  "observation": "TARGET_NOT_TRACKED",
+  "client_timestamp": 7788350
+}

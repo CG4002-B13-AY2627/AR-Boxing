@@ -1,0 +1,12 @@
+{
+  "type": "PickupResult",
+  "protocol_version": 2,
+  "match_id": "match-demo-001",
+  "stream_id": "ultra96-boot-001",
+  "request_id": "pickup-request-p1-0043",
+  "item_id": "stamina-p1-0043",
+  "player_id": 1,
+  "accepted": false,
+  "reason": "OUT_OF_RANGE",
+  "server_timestamp": 12345840
+}

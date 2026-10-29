@@ -1,0 +1,6 @@
+{
+  "type": "ClientHello",
+  "protocol_version": 2,
+  "client_id": "iphone-p1-dev",
+  "player_id": 1
+}

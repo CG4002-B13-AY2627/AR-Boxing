@@ -1,0 +1,10 @@
+{
+  "type": "ServerWelcome",
+  "protocol_version": 2,
+  "match_id": "match-demo-001",
+  "stream_id": "ultra96-boot-001",
+  "player_id": 2,
+  "server_timestamp": 12345000,
+  "heartbeat_interval_ms": 5000,
+  "supports_player_commands": true
+}

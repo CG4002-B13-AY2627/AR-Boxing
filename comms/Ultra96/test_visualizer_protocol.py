@@ -62,8 +62,8 @@ class HelloValidationTests(unittest.TestCase):
 
     def test_welcome_and_state_match_canonical_v2_schemas(self):
         from jsonschema import Draft202012Validator
-        default_contracts = Path(__file__).resolve().parents[3] / "CG4002-Viz" / "contracts"
-        contracts = Path(os.environ.get("CG4002_CONTRACTS_DIR", default_contracts))
+        from contract_validation import contracts_directory
+        contracts = contracts_directory()
         self.assertTrue((contracts / "game-event.schema.json").is_file(), "Matching contracts required")
 
         hub = PhoneHub()

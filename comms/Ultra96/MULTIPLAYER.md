@@ -2,7 +2,9 @@
 
 The CPU GameEngine is authoritative. Both phones use one full-duplex WebSocket each through a byte-forwarding laptop hotspot/SSH tunnel. Use `visualizer_server.py`; do not run another phone listener on the same port.
 
-Install Python 3.10+ and `python -m pip install -r comms/requirements.txt` from the AR-Boxing root. Set `CG4002_CONTRACTS_DIR` to the matching visualizer's contracts directory. The current shared visualizer submodule pointer predates menu integration: update it to the reviewed/tested visualizer commit before deployment. Missing matching schemas fail required checks.
+Install Python 3.10+ and `python -m pip install -r comms/requirements.txt` from the AR-Boxing root. The deployable schema mirror is bundled in `comms/contracts` and found automatically. It is copied from the canonical CG4002-Viz contracts; deploy it together with the Python files. `--contracts-dir` or `CG4002_CONTRACTS_DIR` can explicitly select another matching export. An explicit incomplete path fails with the resolved directory and missing filenames.
+
+For the board layout `~/comms/esp_ai_live/*.py`, copy the **whole** bundled `comms/contracts` directory to `~/comms/contracts`, then use `--contracts-dir /home/xilinx/comms/contracts`. This avoids depending on a Unity checkout or its submodule being present on the board. In Bash, end each continued command line with `\`; otherwise the options on the next line are separate shell commands.
 
 Local development:
 

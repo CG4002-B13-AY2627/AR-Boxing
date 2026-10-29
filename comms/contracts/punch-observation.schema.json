@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cg4002-b13.local/schemas/v2/punch-observation.schema.json",
+  "title": "PunchObservation v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "protocol_version",
+    "match_id",
+    "stream_id",
+    "attack_id",
+    "observer_player",
+    "observation",
+    "client_timestamp"
+  ],
+  "properties": {
+    "type": { "const": "PunchObservation" },
+    "protocol_version": { "const": 2 },
+    "match_id": { "$ref": "#/$defs/identifier" },
+    "stream_id": { "$ref": "#/$defs/identifier" },
+    "attack_id": { "$ref": "#/$defs/identifier" },
+    "observer_player": { "type": "integer", "enum": [1, 2] },
+    "observation": {
+      "type": "string",
+      "enum": ["TARGET_TRACKED", "TARGET_NOT_TRACKED", "TRACKING_UNAVAILABLE"]
+    },
+    "target_age_ms": { "type": "integer", "minimum": 0, "maximum": 1000 },
+    "client_timestamp": { "type": "integer", "minimum": 0 }
+  },
+  "$defs": {
+    "identifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "observation": { "const": "TARGET_TRACKED" } },
+        "required": ["observation"]
+      },
+      "then": { "required": ["target_age_ms"] }
+    }
+  ]
+}

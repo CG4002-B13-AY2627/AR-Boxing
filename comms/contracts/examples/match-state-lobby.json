@@ -1,0 +1,31 @@
+{
+  "type": "MatchState",
+  "protocol_version": 2,
+  "match_id": "match-demo-001",
+  "stream_id": "ultra96-boot-001",
+  "seq": 12,
+  "timestamp": 12345100,
+  "player_1": {
+    "health": 100,
+    "stamina": 100,
+    "is_blocking": false,
+    "attack_multiplier": 1.0,
+    "attack_multiplier_remaining_ms": 0,
+    "connected": true,
+    "ready": true
+  },
+  "player_2": {
+    "health": 100,
+    "stamina": 100,
+    "is_blocking": false,
+    "attack_multiplier": 1.0,
+    "attack_multiplier_remaining_ms": 0,
+    "connected": true,
+    "ready": false
+  },
+  "round_time": 90.0,
+  "state": "LOBBY",
+  "active_items": [],
+  "phase_remaining_ms": 0,
+  "match_result": "PENDING"
+}
