@@ -6,6 +6,7 @@ provide target observations, never authoritative damage or guard decisions.
 
 from dataclasses import dataclass
 import math
+import random
 import time
 
 
@@ -32,6 +33,20 @@ ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
 COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME"))
+# Health pickups (docs/protocol.md "Player-specific item pickups").
+HEALTH_ITEM_HEAL = 25.0
+HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
+HEALTH_ITEM_DISTANCE_M = 1.0
+HEALTH_ITEM_MAX_BEARING = 65.0
+PICKUP_RADIUS_M = 0.5
+
+
+@dataclass
+class HealthItem:
+    item_id: str
+    owner: int
+    bearing_degrees: float
+    expires_at: float          # in fight seconds, so a pause freezes it
 
 
 @dataclass
@@ -56,7 +71,7 @@ class GameEngine:
     """
 
     def __init__(self, clock=time.monotonic, round_seconds=ROUND_SECONDS,
-                 countdown_seconds=COUNTDOWN_SECONDS, required_players=2):
+                 countdown_seconds=COUNTDOWN_SECONDS, required_players=2, seed=4002):
         if round_seconds <= 0:
             raise ValueError("round_seconds must be positive")
         if countdown_seconds <= 0:
@@ -73,12 +88,18 @@ class GameEngine:
         self.round_end_at = None
         self.countdown_until = None
         self.fight_epoch = 0      # +1 each time FIGHTING (re)starts
+        self.fight_seconds = 0.0  # time spent FIGHTING; item lifetimes use it
+        self.items = {}           # owner player -> HealthItem (one each at most)
+        self.item_serial = 0
+        self.rng = random.Random(seed)
         self.transitions = []
 
     def _set_phase(self, phase):
         self.phase = phase
         for player in self.players.values():
             player.ready = False   # ready means "for this phase" only
+        if phase in ("ROUND_END", "MATCH_END"):
+            self.items.clear()     # nothing to collect once the round is over
         if phase == "FIGHTING":
             self.fight_epoch += 1
         if phase == "COUNTDOWN":
@@ -188,12 +209,75 @@ class GameEngine:
                                            active * STAMINA_REGEN_PER_SECOND), 2)
                 if now >= player.guard_until:
                     player.guard_until = 0.0
+            self.fight_seconds += active
+            for owner, item in list(self.items.items()):
+                if item.expires_at <= self.fight_seconds:
+                    del self.items[owner]
             self.round_time = max(0.0, self.round_time - elapsed)
             if self.round_time == 0.0:
                 self._end_round(now)
         if self.phase == "ROUND_END" and now >= self.round_end_at:
             self._set_phase("MATCH_END")
             self.transitions.append("MATCH_END")
+
+    def spawn_health(self, player_id):
+        """Place one health pack for this player (FIGHTING only, one at a time).
+
+        Spawning is an explicit trigger (operator key or --spawn-seconds); the
+        phone places it 1 m away at the given bearing on its own floor.
+        """
+        if player_id not in self.players:
+            raise ValueError("invalid player")
+        self.advance()
+        if self.phase != "FIGHTING" or player_id in self.items:
+            return None
+        self.item_serial += 1
+        item = HealthItem(
+            item_id=f"health-p{player_id}-{self.item_serial:04d}",
+            owner=player_id,
+            bearing_degrees=round(self.rng.uniform(-HEALTH_ITEM_MAX_BEARING,
+                                                   HEALTH_ITEM_MAX_BEARING), 1),
+            expires_at=self.fight_seconds + HEALTH_ITEM_SECONDS,
+        )
+        self.items[player_id] = item
+        return item
+
+    def pickup_target(self, player_id):
+        """The item a pickup action would try to collect, or None."""
+        self.advance()
+        return self.items.get(player_id) if self.phase == "FIGHTING" else None
+
+    def collect_health(self, player_id, item_id, observation, distance_m):
+        """Judge one phone observation. Returns (reason, health gained).
+
+        Only FIGHTING, the player's own live item, AVAILABLE and <= 0.5 m
+        succeed; success removes the item and heals (capped at 100), even at
+        full health. The phone's distance is trusted evidence, not verified.
+        """
+        self.advance()
+        item = self.items.get(player_id)
+        if self.phase != "FIGHTING":
+            return "MATCH_NOT_ACTIVE", 0.0
+        if item is None or item.item_id != item_id:
+            return "ITEM_NOT_FOUND", 0.0
+        if observation != "AVAILABLE":
+            return observation, 0.0      # ITEM_UNAVAILABLE / TRACKING_UNAVAILABLE
+        if distance_m > PICKUP_RADIUS_M:
+            return "OUT_OF_RANGE", 0.0
+        del self.items[player_id]
+        player = self.players[player_id]
+        before = player.health
+        player.health = round(min(100.0, before + HEALTH_ITEM_HEAL), 2)
+        return "ACCEPTED", round(player.health - before, 2)
+
+    def _active_items(self):
+        return [{
+            "id": item.item_id, "item_type": "HEALTH", "owner_player": item.owner,
+            "distance_m": HEALTH_ITEM_DISTANCE_M, "bearing_degrees": item.bearing_degrees,
+            "magnitude": HEALTH_ITEM_HEAL, "effect_duration_ms": 0,
+            "remaining_ms": max(0, min(120000, math.ceil(
+                (item.expires_at - self.fight_seconds) * 1000))),
+        } for item in self.items.values()]
 
     def pop_transitions(self):
         transitions = self.transitions
@@ -276,7 +360,7 @@ class GameEngine:
             "player_2": player_state(self.players[2]),
             "round_time": round(self.round_time, 2),
             "state": self.phase,
-            "active_items": [],
+            "active_items": self._active_items(),
             "phase_remaining_ms": self.phase_remaining_ms(),
             "match_result": self.match_result(),
         }

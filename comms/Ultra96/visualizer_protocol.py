@@ -63,6 +63,45 @@ def decode_observation(raw):
 COMMAND_KEYS = frozenset(("type", "protocol_version", "match_id", "stream_id",
                           "player_id", "command_id", "command", "timestamp"))
 RECENT_COMMAND_IDS = 256
+PICKUP_TIMEOUT_MS = 750
+PICKUP_KEYS = frozenset(("type", "protocol_version", "match_id", "stream_id", "request_id",
+                         "item_id", "player_id", "observation", "client_timestamp"))
+PICKUP_OBSERVATIONS = frozenset(("AVAILABLE", "ITEM_UNAVAILABLE", "TRACKING_UNAVAILABLE"))
+
+
+def decode_pickup_observation(raw):
+    """Return a canonical PickupObservation dict, or None.
+
+    AVAILABLE must carry a finite, non-negative observed_distance_m and a hand;
+    the other observations must carry neither (never a made-up zero distance).
+    """
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_MESSAGE_BYTES:
+        return None
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(value, dict) or not PICKUP_KEYS <= set(value):
+        return None
+    available = value.get("observation") == "AVAILABLE"
+    extra = set(value) - PICKUP_KEYS
+    if extra != ({"observed_distance_m", "hand"} if available else set()):
+        return None
+    if (value["type"] != "PickupObservation" or
+            type(value["protocol_version"]) is not int or
+            value["protocol_version"] != PROTOCOL_VERSION or
+            any(not isinstance(value[key], str) or not IDENTIFIER.fullmatch(value[key])
+                for key in ("match_id", "stream_id", "request_id", "item_id")) or
+            type(value["player_id"]) is not int or value["player_id"] not in (1, 2) or
+            value["observation"] not in PICKUP_OBSERVATIONS or
+            type(value["client_timestamp"]) is not int or value["client_timestamp"] < 0):
+        return None
+    if available:
+        distance = value["observed_distance_m"]
+        if (type(distance) not in (int, float) or not math.isfinite(distance) or
+                distance < 0 or value["hand"] not in ("LEFT", "RIGHT")):
+            return None
+    return value
 
 
 def message_type(raw):
@@ -169,6 +208,16 @@ class AttackRecord:
         return "RESOLVED" if self.final_event is not None else "PENDING"
 
 
+@dataclass
+class PickupRequest:
+    """One pickup action: its private PickupCheck, then exactly one result."""
+
+    check: dict
+    deadline: float
+    result: dict = None
+    observation: dict = None
+
+
 class PhoneHub:
     """Two-player WSS transport; GameEngine alone owns gameplay state."""
 
@@ -187,6 +236,8 @@ class PhoneHub:
         self.auto_start = auto_start
         self.command_ids = {1: deque(maxlen=RECENT_COMMAND_IDS),
                             2: deque(maxlen=RECENT_COMMAND_IDS)}
+        self.pickups = {}           # request_id -> PickupRequest, for the whole match
+        self.pending_pickups = {}   # player -> request_id; one check at a time
         self.owners = {}             # player_id -> stable client_id
         self.active = {}             # player_id -> socket, including joining
         self.ready = {}              # player_id -> socket, after welcome/state
@@ -232,6 +283,11 @@ class PhoneHub:
                 record.bound_socket = None
         if was_ready:
             async with self.broadcast_lock:
+                # A pending pickup check can't be answered now: time it out
+                # without consuming the item.
+                request_id = self.pending_pickups.get(player_id)
+                if request_id is not None:
+                    self._resolve_pickup_locked(self.pickups[request_id], "OBSERVATION_TIMEOUT")
                 # Mid-fight (or countdown) this pauses; ready flags drop either way.
                 self.engine.set_connected(player_id, False)
                 await self._broadcast_transitions_locked()
@@ -275,6 +331,129 @@ class PhoneHub:
             await self._broadcast_transitions_locked()
             await self.broadcast(self.state())
         return paused
+
+    # ----- Health pickups (docs/protocol.md "Player-specific item pickups") -----
+
+    async def spawn_health(self, player_id):
+        """Explicit spawn trigger; MatchState.active_items carries the item."""
+        async with self.broadcast_lock:
+            item = self.engine.spawn_health(player_id)
+            if item is not None:
+                await self.broadcast(self.state())
+        return item
+
+    async def request_pickup(self, player_id, action_id):
+        """A pickup action (wearable or keyboard) with a stable action ID.
+
+        Sends a private PickupCheck to that player's phone. Retrying the same
+        action ID never creates a second effect: it replays the cached result.
+        Returns the PickupCheck sent, the cached result, or None if ignored.
+        """
+        if (player_id not in (1, 2) or not isinstance(action_id, str) or
+                not IDENTIFIER.fullmatch(action_id)):
+            raise ValueError("invalid pickup action")
+        request_id = f"p{player_id}:{action_id}"
+        if len(request_id) > 64:
+            raise ValueError("pickup action ID too long")
+        async with self.broadcast_lock:
+            prior = self.pickups.get(request_id)
+            if prior is not None:
+                if prior.result is not None and player_id in self.ready:
+                    socket = self.ready[player_id]
+                    await send_bounded(socket, encode(prior.result))
+                    await send_bounded(socket, encode(self.state()))
+                return prior.result
+            socket = self.ready.get(player_id)
+            item = self.engine.pickup_target(player_id)
+            if (socket is None or item is None or player_id in self.pending_pickups or
+                    len(self.pickups) >= MAX_ATTACK_RECORDS):
+                return None
+            check = {
+                "type": "PickupCheck", "protocol_version": PROTOCOL_VERSION,
+                "match_id": self.match_id, "stream_id": self.stream_id,
+                "request_id": request_id, "item_id": item.item_id,
+                "player_id": player_id, "response_timeout_ms": PICKUP_TIMEOUT_MS,
+            }
+            self.pickups[request_id] = PickupRequest(
+                check, time.monotonic() + PICKUP_TIMEOUT_MS / 1000)
+            self.pending_pickups[player_id] = request_id
+            await send_bounded(socket, encode(check))
+            timer = asyncio.create_task(self._pickup_timeout(request_id))
+            self.resolver_tasks.add(timer)
+            timer.add_done_callback(self.resolver_tasks.discard)
+        return check
+
+    def _resolve_pickup_locked(self, request, reason):
+        check = request.check
+        request.result = {
+            "type": "PickupResult", "protocol_version": PROTOCOL_VERSION,
+            "match_id": self.match_id, "stream_id": self.stream_id,
+            "request_id": check["request_id"], "item_id": check["item_id"],
+            "player_id": check["player_id"], "accepted": reason == "ACCEPTED",
+            "reason": reason, "server_timestamp": int(time.time() * 1000),
+        }
+        if self.pending_pickups.get(check["player_id"]) == check["request_id"]:
+            del self.pending_pickups[check["player_id"]]
+        return request.result
+
+    async def _pickup_timeout(self, request_id):
+        request = self.pickups[request_id]
+        await asyncio.sleep(max(0.0, request.deadline - time.monotonic()))
+        async with self.broadcast_lock:
+            if request.result is not None:
+                return
+            result = self._resolve_pickup_locked(request, "OBSERVATION_TIMEOUT")
+            socket = self.ready.get(result["player_id"])
+            if socket is not None:
+                await send_bounded(socket, encode(result))
+
+    async def pickup_observation(self, player_id, client_id, raw):
+        """Judge the phone's reach evidence; invalid or foreign input is ignored."""
+        observation = decode_pickup_observation(raw)
+        request = (self.pickups.get(observation["request_id"])
+                   if observation is not None else None)
+        if (request is None or observation["player_id"] != player_id or
+                self.owners.get(player_id) != client_id or
+                any(observation[key] != request.check[key]
+                    for key in ("match_id", "stream_id", "item_id", "player_id"))):
+            print(f"[PICKUP] ignored invalid or foreign observation from P{player_id}", flush=True)
+            return None
+        async with self.broadcast_lock:
+            socket = self.ready.get(player_id)
+            if request.result is not None:
+                # A retry of the same evidence replays; different evidence is ignored.
+                if request.observation in (None, observation) and socket is not None:
+                    await send_bounded(socket, encode(request.result))
+                    await send_bounded(socket, encode(self.state()))
+                return request.result
+            if time.monotonic() >= request.deadline:
+                reason, gained = "OBSERVATION_TIMEOUT", 0.0
+            else:
+                reason, gained = self.engine.collect_health(
+                    player_id, observation["item_id"], observation["observation"],
+                    observation.get("observed_distance_m", 0.0))
+            request.observation = observation
+            result = self._resolve_pickup_locked(request, reason)
+            print(f"[PICKUP] P{player_id} {reason}"
+                  + (f" +{gained:g} HP" if reason == "ACCEPTED" else ""), flush=True)
+            if socket is not None:
+                await send_bounded(socket, encode(result))
+            if reason == "ACCEPTED":
+                self.event_seq += 1
+                await self.broadcast({
+                    "type": "GameEvent", "protocol_version": PROTOCOL_VERSION,
+                    "match_id": self.match_id, "stream_id": self.stream_id,
+                    "seq": self.event_seq, "timestamp": int(time.time() * 1000),
+                    "event": "ITEM_PICKUP", "source_player": player_id,
+                    "target_player": player_id, "punch": "", "confidence": 1.0,
+                    "intensity": 0.0, "outcome": "NONE", "damage": 0.0,
+                    "request_id": observation["request_id"],
+                    "item_id": observation["item_id"], "item_type": "HEALTH",
+                    "hand": observation["hand"], "magnitude": gained,
+                    "effect_duration_ms": 0,
+                })
+                await self.broadcast(self.state())
+            return result
 
     def state(self):
         self.state_seq += 1
@@ -499,6 +678,9 @@ class PhoneHub:
                 kind = message_type(raw)
                 if kind == "PlayerCommand":
                     await self.player_command(player_id, client_id, raw)
+                    continue
+                if kind == "PickupObservation":
+                    await self.pickup_observation(player_id, client_id, raw)
                     continue
                 observation = decode_observation(raw) if kind == "PunchObservation" else None
                 if observation is None:

@@ -35,7 +35,7 @@ DEFAULT_ACTION_MAP = {
     "l_uppercut": "LEFT_UPPERCUT", "r_uppercut": "RIGHT_UPPERCUT",
 }
 IGNORED_AI_ACTIONS = frozenset({"idle"})
-UNIMPLEMENTED_AI_ACTIONS = frozenset({"weave", "pickup", "use"})
+UNIMPLEMENTED_AI_ACTIONS = frozenset({"weave", "use"})
 
 
 @dataclass(frozen=True)
@@ -76,6 +76,15 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
         print(f"[AI UNSUPPORTED] {event.action}: current GameEngine has no handler; "
               "no punch/guard invented", flush=True)
         return None
+    if event.action == "pickup":
+        if attack_id is None:
+            raise ValueError("a stable action ID is required for pickup events")
+        sent = await hub.request_pickup(player + 1, attack_id)
+        print(f"[AI PICKUP] P{player + 1} id={attack_id} " +
+              ("check sent to phone" if sent and sent["type"] == "PickupCheck"
+               else "cached result replayed" if sent else
+               "ignored (no item, not fighting, phone offline or check pending)"), flush=True)
+        return sent
     if event.action == "block":
         if event.edge not in ("start", "end"):
             raise ValueError("block needs edge='start' or 'end'")
@@ -302,7 +311,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     selected = 1
     last = None
     print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
-          "g guard | x end guard | p pause | s state | r retry last ID | ? help | q quit",
+          "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
           flush=True)
     print_match_state(hub)
     while True:
@@ -312,7 +321,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             return
         if key == "?":
             print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
-                  "g guard | x end guard | p pause | s state | r retry last ID | ? help | q quit",
+                  "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
                   flush=True)
             continue
         if key in ("1", "2"):
@@ -344,11 +353,30 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             kind, player, value = "guard", selected, key == "g"
             action_id = attack_ids.next(player - 1)
             last = kind, player, value, action_id
+        elif key == "i":
+            item = await hub.spawn_health(selected)
+            print(f"[ITEM] P{selected} health pack {item.item_id} at "
+                  f"{item.bearing_degrees:+.0f} deg" if item else
+                  f"[ITEM] P{selected}: only while FIGHTING, one pack at a time", flush=True)
+            continue
+        elif key == "k":
+            kind, player, value = "pickup", selected, None
+            action_id = attack_ids.next(player - 1)
+            last = kind, player, value, action_id
         else:
             if key.strip():
                 print(f"[KEYS] unknown key {key!r}; press ? for help", flush=True)
             continue
 
+        if kind == "pickup":
+            sent = await hub.request_pickup(player, action_id)
+            print(f"[PICKUP] P{player} id={action_id}: " +
+                  ("check sent; the phone answers with its reach" if sent and
+                   sent["type"] == "PickupCheck" else
+                   f"cached {sent['reason']}" if sent else
+                   "ignored (no item, not fighting, phone offline or check pending)"),
+                  flush=True)
+            continue
         if kind == "punch":
             if key != "r":
                 print(f"[ATTEMPT] P{player} {value} id={action_id}; "
@@ -380,6 +408,18 @@ async def run_keyboard(args, hub, attack_ids):
         await run_keyboard_commands(args, hub, attack_ids, commands)
     finally:
         keyboard.close()
+
+
+async def spawn_health_every(hub, seconds):
+    """Optional --spawn-seconds: give each connected phone a health pack while
+    FIGHTING (spawn_health ignores a player who still has one)."""
+    while True:
+        await asyncio.sleep(seconds)
+        if hub.engine.phase == "FIGHTING":
+            for player in tuple(hub.ready):
+                item = await hub.spawn_health(player)
+                if item is not None:
+                    print(f"[ITEM] P{player} health pack {item.item_id}", flush=True)
 
 
 async def main(args):
@@ -423,6 +463,8 @@ async def main(args):
                                 ping_interval=PING_INTERVAL_SECONDS,
                                 ping_timeout=PING_INTERVAL_SECONDS):
         state_task = asyncio.create_task(periodic_states(hub))
+        spawn_task = (asyncio.create_task(spawn_health_every(hub, args.spawn_seconds))
+                      if args.spawn_seconds > 0 else None)
         try:
             print(f"[{'WS' if ctx is None else 'WSS'}] host={args.host} port={args.port} "
                   f"stream={hub.stream_id} source={args.source} "
@@ -452,8 +494,10 @@ async def main(args):
                     print("[WSS] remains open; Ctrl+C to stop", flush=True)
                     await asyncio.Future()
         finally:
-            state_task.cancel()
-            await asyncio.gather(state_task, return_exceptions=True)
+            tasks = [task for task in (state_task, spawn_task) if task is not None]
+            for task in tasks:
+                task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
 
 
 if __name__ == "__main__":
@@ -477,6 +521,9 @@ if __name__ == "__main__":
                              "phones' Ready / I'm set menus (phone-less AI runs)")
     parser.add_argument("--countdown-seconds", type=float, default=3.0,
                         help="COUNTDOWN length before FIGHTING (default: 3)")
+    parser.add_argument("--spawn-seconds", type=float, default=0.0,
+                        help="spawn a health pack for each phone this often while "
+                             "FIGHTING (default 0 = only with the 'i' key)")
     parser.add_argument("--insecure-ws", action="store_true",
                         help="plain ws:// for local Unity Editor tests; only with --host 127.0.0.1")
     parser.add_argument("--samples", type=int, default=2000,
@@ -522,7 +569,8 @@ if __name__ == "__main__":
             not 0 < args.round_seconds <= 3600 or
             not 100 <= args.response_timeout_ms <= 2000 or
             not 1 <= args.port <= 65535 or
-            not 0 < args.countdown_seconds <= 60):
+            not 0 < args.countdown_seconds <= 60 or
+            not 0 <= args.spawn_seconds <= 600):
         parser.error("invalid sample count, intensity, confidence, timing, port, "
                      "or response timeout (100..2000 ms)")
     try:
