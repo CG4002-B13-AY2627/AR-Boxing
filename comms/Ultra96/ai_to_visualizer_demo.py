@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
-"""One-process AI -> PunchAttempt -> observation -> final GameEvent WSS demo.
+"""Phone game server (protocol v2 over WSS) without the live ESP sensors.
 
-Use --source keyboard for live, no-FPGA input, --source fake for a scripted
-end-to-end test, or --source fpga-noise for the seeded-noise model test.
-None of these sources uses live ESP sensor data.
-The final GameEvent carrying the attack_id acknowledges the observation;
-MatchState follows it on both phones. Only this process should bind port 8889.
+The phones drive the match with their menus (Ready, I'm set, Pause, Resume);
+this process is the authority for punches, guards, pickups and the result.
+Use it for Unity Editor tests and two-phone runs before the wearables are in.
+
+Sources of actions (none uses live ESP sensor data):
+  --source keyboard    operator keys (default); press ? for the list
+  --source fake        scripted AI-shaped events, for end-to-end tests
+  --source fpga-noise  seeded noise through the FPGA model (board check)
+
+The live sensor path is esp_ai_live.py / esp_ai_live_dashboard.py, which use
+the same PhoneHub. Only one process may bind port 8889.
 """
 
 import argparse
@@ -310,7 +316,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     """Run console commands; a queue makes the same path testable without a TTY."""
     selected = 1
     last = None
-    print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
+    print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
           "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
           flush=True)
     print_match_state(hub)
@@ -320,7 +326,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             print("[STOP] keyboard demo closed", flush=True)
             return
         if key == "?":
-            print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
+            print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
                   "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
                   flush=True)
             continue
@@ -504,8 +510,8 @@ if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", choices=("keyboard", "fake", "fpga-noise"),
-                        default="fpga-noise",
-                        help="keyboard and fake need no FPGA; fpga-noise uses seeded model input")
+                        default="keyboard",
+                        help="keyboard (default) and fake need no FPGA; fpga-noise uses seeded model input")
     parser.add_argument("--ai-dir", type=Path, default=Path("/home/xilinx/ai/demo"),
                         help="PYNQ demo directory, used only by fpga-noise")
     parser.add_argument("--cert", type=Path, default=here / "server.crt",

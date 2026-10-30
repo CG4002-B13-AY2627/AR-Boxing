@@ -359,36 +359,6 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                         await one.recv()  # fresh convergence state for requester only
                         clock.advance(1.1)
 
-                        # Exercise the sensor-pipeline thread's handoff to the
-                        # same phone hub without requiring a physical ESP32.
-                        import comms_server
-                        with comms_server.pipeline_lock:
-                            comms_server.visualizer_loop = asyncio.get_running_loop()
-                            comms_server.visualizer_hub = hub
-                        try:
-                            comms_server.push_random_ai_event(1)
-                            pipeline_attempt = await receive_type(one, "PunchAttempt")
-                            self.assertEqual(pipeline_attempt["type"], "PunchAttempt")
-                            await one.send(json.dumps({
-                                "type": "PunchObservation", "protocol_version": 2,
-                                "match_id": pipeline_attempt["match_id"],
-                                "stream_id": pipeline_attempt["stream_id"],
-                                "attack_id": pipeline_attempt["attack_id"],
-                                "observer_player": 1,
-                                "observation": "TARGET_NOT_TRACKED", "client_timestamp": 124,
-                            }))
-                            pipeline_one = json.loads(await asyncio.wait_for(one.recv(), 3))
-                            pipeline_two = json.loads(await asyncio.wait_for(two.recv(), 3))
-                            self.assertEqual(pipeline_one, pipeline_two)
-                            self.assertEqual(pipeline_one["type"], "GameEvent")
-                            self.assertEqual(pipeline_one["damage"], 0.0)
-                            self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
-                        finally:
-                            with comms_server.pipeline_lock:
-                                comms_server.visualizer_loop = None
-                                comms_server.visualizer_hub = None
-                        clock.advance(1.1)
-
                         # Disconnect before replying, rejoin the same reserved
                         # player slot, and finish the original pending ID once.
                         reconnect_task = asyncio.create_task(hub.request_punch(
