@@ -63,7 +63,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
             server_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             server_tls.load_cert_chain(cert, key)
             client_tls = ssl.create_default_context(cafile=str(cert))
-            hub = PhoneHub(engine=GameEngine(clock=FakeClock()))
+            hub = PhoneHub(engine=GameEngine(clock=FakeClock()), auto_start=True)
             args = SimpleNamespace(fake_confidence=0.95, demo_intensity=0.6,
                                    response_timeout_ms=1000)
             commands = asyncio.Queue()
@@ -145,7 +145,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
             server_tls.load_cert_chain(cert, key)
             client_tls = ssl.create_default_context(cafile=str(cert))
             clock = FakeClock()
-            hub = PhoneHub(engine=GameEngine(clock=clock))
+            hub = PhoneHub(engine=GameEngine(clock=clock), auto_start=True)
             ids = AttackIds("fixture-run")
 
             async with websockets.serve(hub.handle, "127.0.0.1", 0, ssl=server_tls) as server:

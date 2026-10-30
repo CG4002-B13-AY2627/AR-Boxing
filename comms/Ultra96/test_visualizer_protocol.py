@@ -153,7 +153,7 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
             server_tls.load_cert_chain(cert, key)
             client_tls = ssl.create_default_context(cafile=str(cert))
             clock = FakeClock()
-            hub = PhoneHub(engine=GameEngine(clock=clock))
+            hub = PhoneHub(engine=GameEngine(clock=clock), auto_start=True)
             validators = {}
             try:
                 from jsonschema import Draft202012Validator

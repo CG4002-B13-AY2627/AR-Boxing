@@ -300,7 +300,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     selected = 1
     last = None
     print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
-          "g guard | x end guard | s state | r retry last ID | ? help | q quit",
+          "g guard | x end guard | p pause | s state | r retry last ID | ? help | q quit",
           flush=True)
     print_match_state(hub)
     while True:
@@ -310,7 +310,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             return
         if key == "?":
             print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
-                  "g guard | x end guard | s state | r retry last ID | ? help | q quit",
+                  "g guard | x end guard | p pause | s state | r retry last ID | ? help | q quit",
                   flush=True)
             continue
         if key in ("1", "2"):
@@ -320,6 +320,11 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
         if key == "s":
             await hub.broadcast_state()
             print_match_state(hub)
+            continue
+        if key == "p":
+            paused = await hub.operator_pause()
+            print("[PAUSE] operator pause" if paused else
+                  "[PAUSE] only during COUNTDOWN or FIGHTING", flush=True)
             continue
         if key == "r":
             if last is None:
@@ -393,15 +398,19 @@ async def main(args):
         elif (args.fake_action not in action_map and
               args.fake_action not in IGNORED_AI_ACTIONS | UNIMPLEMENTED_AI_ACTIONS | {"block"}):
             raise ValueError(f"fake action {args.fake_action!r} is not in the action map")
-    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    ctx.load_cert_chain(args.cert, args.key)
-    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds),
-                   required_players=args.wait_players)
+    ctx = None
+    if not args.insecure_ws:
+        ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+        ctx.load_cert_chain(args.cert, args.key)
+    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds,
+                                     countdown_seconds=args.countdown_seconds),
+                   required_players=args.wait_players, auto_start=args.auto_start)
     attack_ids = AttackIds()
 
     async def handle(ws):
-        print("[PHONE] encrypted connection; awaiting ClientHello", flush=True)
+        print("[PHONE] " + ("plain ws (local test)" if ctx is None else "encrypted") +
+              " connection; awaiting ClientHello", flush=True)
         try:
             await hub.handle(ws)
         finally:
@@ -411,8 +420,9 @@ async def main(args):
                                 max_size=MAX_MESSAGE_BYTES):
         state_task = asyncio.create_task(periodic_states(hub))
         try:
-            print(f"[WSS] host={args.host} port={args.port} stream={hub.stream_id} "
-                  f"source={args.source}", flush=True)
+            print(f"[{'WS' if ctx is None else 'WSS'}] host={args.host} port={args.port} "
+                  f"stream={hub.stream_id} source={args.source} "
+                  f"flow={'auto-start' if args.auto_start else 'phone menus'}", flush=True)
             if args.source == "keyboard":
                 print(f"[WAIT] connect {args.wait_players} phone(s); "
                       "commands are available now", flush=True)
@@ -421,6 +431,10 @@ async def main(args):
                 print(f"[WAIT] connect {args.wait_players} phone(s); complete ClientHello first", flush=True)
                 while (len(hub.ready) < args.wait_players or
                        (args.source == "fake" and args.fake_player not in hub.ready)):
+                    await asyncio.sleep(0.2)
+                if hub.engine.phase != "FIGHTING":
+                    print("[WAIT] phones: press Ready, then I'm set", flush=True)
+                while hub.engine.phase != "FIGHTING":
                     await asyncio.sleep(0.2)
                 print(f"[READY] phone handshake complete; source starts in "
                       f"{args.start_delay:g} seconds", flush=True)
@@ -452,8 +466,15 @@ if __name__ == "__main__":
                         help="matching private key; keep it off Git")
     parser.add_argument("--host", default="0.0.0.0", help="WSS bind address")
     parser.add_argument("--port", type=int, default=8889, help="WSS listen port")
-    parser.add_argument("--wait-players", type=int, choices=(1, 2), default=2,
-                        help="registered phones required before injection (default: 2)")
+    parser.add_argument("--wait-players", "--players", type=int, choices=(1, 2), default=2,
+                        help="phones required to start the match (default: 2)")
+    parser.add_argument("--auto-start", action="store_true",
+                        help="old behaviour: joining starts/resumes FIGHTING without the "
+                             "phones' Ready / I'm set menus (phone-less AI runs)")
+    parser.add_argument("--countdown-seconds", type=float, default=3.0,
+                        help="COUNTDOWN length before FIGHTING (default: 3)")
+    parser.add_argument("--insecure-ws", action="store_true",
+                        help="plain ws:// for local Unity Editor tests; only with --host 127.0.0.1")
     parser.add_argument("--samples", type=int, default=2000,
                         help="seeded-noise samples for fpga-noise source")
     parser.add_argument("--demo-intensity", type=float, default=0.6,
@@ -489,12 +510,15 @@ if __name__ == "__main__":
     args.ai_dir = args.ai_dir.expanduser().resolve()
     if args.source == "fake" and not args.fake_punch and args.fake_action == "block" and args.fake_edge is None:
         parser.error("--fake-action block requires --fake-edge start or end")
+    if args.insecure_ws and args.host not in ("127.0.0.1", "localhost", "::1"):
+        parser.error("--insecure-ws is only for local tests: use --host 127.0.0.1")
     if (args.samples < 1 or not 0 <= args.demo_intensity <= 1 or
             not 0 <= args.fake_confidence <= 1 or args.fake_count < 1 or
             args.fake_interval < 0 or args.start_delay < 0 or
             not 0 < args.round_seconds <= 3600 or
             not 100 <= args.response_timeout_ms <= 2000 or
-            not 1 <= args.port <= 65535):
+            not 1 <= args.port <= 65535 or
+            not 0 < args.countdown_seconds <= 60):
         parser.error("invalid sample count, intensity, confidence, timing, port, "
                      "or response timeout (100..2000 ms)")
     try:

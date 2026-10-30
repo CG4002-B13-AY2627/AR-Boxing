@@ -6,10 +6,11 @@ import math
 import re
 import time
 import uuid
+from collections import deque
 from dataclasses import dataclass
 
 import websockets
-from game_engine import GameEngine
+from game_engine import COMMANDS, GameEngine
 
 
 PROTOCOL_VERSION = 2
@@ -52,6 +53,45 @@ def decode_observation(raw):
     age = value.get("target_age_ms")
     if (value["observation"] == "TARGET_TRACKED" and age is None or
             age is not None and (type(age) is not int or age < 0 or age > 1000)):
+        return None
+    return value
+
+
+COMMAND_KEYS = frozenset(("type", "protocol_version", "match_id", "stream_id",
+                          "player_id", "command_id", "command", "timestamp"))
+RECENT_COMMAND_IDS = 256
+
+
+def message_type(raw):
+    """The "type" of a JSON object message, or None if it isn't one."""
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_MESSAGE_BYTES:
+        return None
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    kind = value.get("type") if isinstance(value, dict) else None
+    return kind if isinstance(kind, str) else None
+
+
+def decode_command(raw):
+    """Return a canonical PlayerCommand dict, or None (exact keys, like ClientHello)."""
+    if not isinstance(raw, str) or len(raw.encode("utf-8")) > MAX_MESSAGE_BYTES:
+        return None
+    try:
+        value = json.loads(raw)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(value, dict) or set(value) != COMMAND_KEYS:
+        return None
+    if (value["type"] != "PlayerCommand" or
+            type(value["protocol_version"]) is not int or
+            value["protocol_version"] != PROTOCOL_VERSION or
+            any(not isinstance(value[key], str) or not IDENTIFIER.fullmatch(value[key])
+                for key in ("match_id", "stream_id", "command_id")) or
+            type(value["player_id"]) is not int or value["player_id"] not in (1, 2) or
+            not isinstance(value["command"], str) or value["command"] not in COMMANDS or
+            type(value["timestamp"]) is not int or value["timestamp"] < 0):
         return None
     return value
 
@@ -110,13 +150,21 @@ class AttackRecord:
 class PhoneHub:
     """Two-player WSS transport; GameEngine alone owns gameplay state."""
 
-    def __init__(self, match_id="match-demo-001", engine=None, required_players=2):
+    def __init__(self, match_id="match-demo-001", engine=None, required_players=2,
+                 auto_start=False):
+        """auto_start=True keeps the old behaviour (joining starts or resumes the
+        fight) for phone-less AI runs; normally the phones' PlayerCommands drive
+        LOBBY -> CALIBRATING -> COUNTDOWN -> FIGHTING."""
         if required_players not in (1, 2):
             raise ValueError("required_players must be 1 or 2")
         self.match_id = match_id
         self.stream_id = "ultra96-" + uuid.uuid4().hex[:16]
         self.engine = engine or GameEngine()
+        self.engine.required_players = required_players
         self.required_players = required_players
+        self.auto_start = auto_start
+        self.command_ids = {1: deque(maxlen=RECENT_COMMAND_IDS),
+                            2: deque(maxlen=RECENT_COMMAND_IDS)}
         self.owners = {}             # player_id -> stable client_id
         self.active = {}             # player_id -> socket, including joining
         self.ready = {}              # player_id -> socket, after welcome/state
@@ -159,10 +207,12 @@ class PhoneHub:
         for record in self.pending.values():
             if record.source_player == player_id and record.bound_socket is websocket:
                 record.bound_socket = None
-        if was_ready and len(self.ready) < self.required_players:
+        if was_ready:
             async with self.broadcast_lock:
-                if self.engine.pause():
-                    await self.broadcast(self.state())
+                # Mid-fight (or countdown) this pauses; ready flags drop either way.
+                self.engine.set_connected(player_id, False)
+                await self._broadcast_transitions_locked()
+                await self.broadcast(self.state())
 
     def welcome(self, player_id):
         return {
@@ -170,7 +220,38 @@ class PhoneHub:
             "match_id": self.match_id, "stream_id": self.stream_id,
             "player_id": player_id, "server_timestamp": int(time.time() * 1000),
             "heartbeat_interval_ms": 5000,
+            "supports_player_commands": True,
         }
+
+    async def player_command(self, player_id, client_id, raw):
+        """Apply one PlayerCommand from a bound phone. Invalid, foreign or
+        repeated commands are ignored (never a socket close), per protocol.md."""
+        command = decode_command(raw)
+        if (command is None or command["player_id"] != player_id or
+                self.owners.get(player_id) != client_id or
+                command["match_id"] != self.match_id or
+                command["stream_id"] != self.stream_id):
+            print(f"[COMMAND] ignored invalid or foreign command from P{player_id}", flush=True)
+            return False
+        recent = self.command_ids[player_id]
+        if command["command_id"] in recent:
+            return False   # a retry of something already applied
+        recent.append(command["command_id"])
+        async with self.broadcast_lock:
+            changed = self.engine.command(player_id, command["command"])
+            print(f"[COMMAND] P{player_id} {command['command']} -> "
+                  f"{self.engine.phase}{'' if changed else ' (no change)'}", flush=True)
+            await self._broadcast_transitions_locked()
+            await self.broadcast(self.state())
+        return changed
+
+    async def operator_pause(self):
+        """Server-side pause (keyboard 'p'); the referee's stop."""
+        async with self.broadcast_lock:
+            paused = self.engine.pause()
+            await self._broadcast_transitions_locked()
+            await self.broadcast(self.state())
+        return paused
 
     def state(self):
         self.state_seq += 1
@@ -383,24 +464,29 @@ class PhoneHub:
             async with self.broadcast_lock:
                 await websocket.send(encode(self.welcome(player_id)))
                 self.ready[player_id] = websocket
-                resumed = False
-                if len(self.ready) >= self.required_players:
-                    resumed = self.engine.start() or self.engine.resume()
-                snapshot = self.state()
-                await websocket.send(encode(snapshot))
-                if resumed:
-                    payload = encode(snapshot)
-                    await asyncio.gather(
-                        *(socket.send(payload) for slot, socket in self.ready.items()
-                          if slot != player_id), return_exceptions=True)
+                self.engine.set_connected(player_id, True)
+                if self.auto_start and len(self.ready) >= self.required_players:
+                    self.engine.start() or self.engine.resume()
+                # Everyone sees the new connected flag; the joiner gets its full state.
+                snapshot = encode(self.state())
+                await websocket.send(snapshot)
+                await asyncio.gather(
+                    *(socket.send(snapshot) for slot, socket in self.ready.items()
+                      if slot != player_id), return_exceptions=True)
             for record in tuple(self.pending.values()):
                 if record.source_player == player_id and not record.observation_future.done():
                     await self._send_attempt(record, websocket)
             async for raw in websocket:
-                observation = decode_observation(raw)
+                kind = message_type(raw)
+                if kind == "PlayerCommand":
+                    await self.player_command(player_id, client_id, raw)
+                    continue
+                observation = decode_observation(raw) if kind == "PunchObservation" else None
                 if observation is None:
-                    await websocket.close(code=1008, reason="Invalid PunchObservation")
-                    break
+                    # Ignore rather than close: one bad message must not drop a player.
+                    print(f"[PHONE] P{player_id} ignored unsupported or invalid "
+                          f"{kind or 'non-JSON'} message", flush=True)
+                    continue
                 record = self.attacks.get(observation["attack_id"])
                 if (record is None or record.source_player != player_id or
                         self.owners.get(player_id) != client_id or

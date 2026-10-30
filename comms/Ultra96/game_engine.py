@@ -5,6 +5,7 @@ provide target observations, never authoritative damage or guard decisions.
 """
 
 from dataclasses import dataclass
+import math
 import time
 
 
@@ -29,6 +30,8 @@ GUARD_SECONDS = 1.0
 BLOCK_DAMAGE_MULTIPLIER = 0.3
 ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
+COUNTDOWN_SECONDS = 3.0
+COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME"))
 
 
 @dataclass
@@ -37,53 +40,144 @@ class Player:
     stamina: float = 100.0
     busy_until: float = 0.0
     guard_until: float = 0.0
+    connected: bool = False
+    ready: bool = False   # "done with this phase": READY, CALIBRATED or RESUME
 
 
 class GameEngine:
-    """A single-round, two-player authority with an injectable monotonic clock."""
+    """A single-round, two-player authority with an injectable monotonic clock.
 
-    def __init__(self, clock=time.monotonic, round_seconds=ROUND_SECONDS):
+    Match flow (CG4002-Viz docs/protocol.md, PlayerCommand rules):
+    LOBBY -all READY-> CALIBRATING -all CALIBRATED-> COUNTDOWN -timer-> FIGHTING
+    FIGHTING -PAUSE or disconnect-> PAUSED -all RESUME-> COUNTDOWN
+    FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END (final)
+    "All" means at least required_players connected and every connected
+    player ready. Ready flags clear on every phase change.
+    """
+
+    def __init__(self, clock=time.monotonic, round_seconds=ROUND_SECONDS,
+                 countdown_seconds=COUNTDOWN_SECONDS, required_players=2):
         if round_seconds <= 0:
             raise ValueError("round_seconds must be positive")
+        if countdown_seconds <= 0:
+            raise ValueError("countdown_seconds must be positive")
+        if required_players not in (1, 2):
+            raise ValueError("required_players must be 1 or 2")
         self.clock = clock
         self.players = {1: Player(), 2: Player()}
         self.phase = "LOBBY"
         self.round_time = float(round_seconds)
+        self.countdown_seconds = float(countdown_seconds)
+        self.required_players = required_players
         self.last_tick = clock()
         self.round_end_at = None
+        self.countdown_until = None
         self.transitions = []
 
+    def _set_phase(self, phase):
+        self.phase = phase
+        for player in self.players.values():
+            player.ready = False   # ready means "for this phase" only
+        if phase == "COUNTDOWN":
+            self.countdown_until = self.clock() + self.countdown_seconds
+
     def start(self):
+        """Legacy/auto-start helper: LOBBY straight to FIGHTING."""
         if self.phase != "LOBBY":
             return False
         self.last_tick = self.clock()
-        self.phase = "FIGHTING"
+        self._set_phase("FIGHTING")
         return True
 
     def pause(self):
-        if self.phase != "FIGHTING":
+        """Operator pause, PAUSE command or a disconnect (FIGHTING or COUNTDOWN)."""
+        if self.phase not in ("FIGHTING", "COUNTDOWN"):
             return False
         self.advance()
-        if self.phase != "FIGHTING":
+        if self.phase not in ("FIGHTING", "COUNTDOWN"):
             return False
-        self.phase = "PAUSED"
+        self._set_phase("PAUSED")
         for player in self.players.values():
             player.guard_until = 0.0
             player.busy_until = 0.0
         return True
 
     def resume(self):
+        """Legacy/auto-start helper: PAUSED straight back to FIGHTING."""
         if self.phase != "PAUSED":
             return False
         self.last_tick = self.clock()
-        self.phase = "FIGHTING"
+        self._set_phase("FIGHTING")
         return True
+
+    def set_connected(self, player_id, connected):
+        """A phone joined or left. Leaving mid-fight pauses; joining never resumes."""
+        if player_id not in self.players:
+            raise ValueError("invalid player")
+        player = self.players[player_id]
+        player.connected = bool(connected)
+        if connected:
+            return
+        player.ready = False
+        self.pause()
+
+    def command(self, player_id, command):
+        """Apply one PlayerCommand. Returns True when it changed anything."""
+        if player_id not in self.players or command not in COMMANDS:
+            return False
+        self.advance()
+        player = self.players[player_id]
+        if not player.connected or self.phase in ("ROUND_END", "MATCH_END"):
+            return False
+        if command == "PAUSE":
+            return self.phase == "FIGHTING" and self.pause()
+        accepted = {
+            "LOBBY": ("READY", "UNREADY"),
+            "CALIBRATING": ("CALIBRATED",),
+            "PAUSED": ("RESUME",),
+        }.get(self.phase, ())
+        if command not in accepted:
+            return False
+        wanted = command != "UNREADY"
+        if player.ready == wanted:
+            return False
+        player.ready = wanted
+        self._progress()
+        return True
+
+    def _progress(self):
+        connected = [p for p in self.players.values() if p.connected]
+        if len(connected) < self.required_players or not all(p.ready for p in connected):
+            return
+        if self.phase == "LOBBY":
+            self._set_phase("CALIBRATING")
+        elif self.phase in ("CALIBRATING", "PAUSED"):
+            self._set_phase("COUNTDOWN")
+
+    def match_result(self):
+        if self.phase != "MATCH_END":
+            return "PENDING"
+        one, two = self.players[1].health, self.players[2].health
+        return "P1_WIN" if one > two else "P2_WIN" if two > one else "DRAW"
+
+    def phase_remaining_ms(self):
+        now = self.clock()
+        if self.phase == "COUNTDOWN" and self.countdown_until is not None:
+            end = self.countdown_until
+        elif self.phase == "ROUND_END" and self.round_end_at is not None:
+            end = self.round_end_at
+        else:
+            return 0
+        return max(0, min(600000, math.ceil((end - now) * 1000)))
 
     def advance(self):
         """Apply elapsed time; return any phase transitions for event emission."""
         now = self.clock()
         elapsed = max(0.0, now - self.last_tick)
         self.last_tick = now
+        if self.phase == "COUNTDOWN" and now >= self.countdown_until:
+            self._set_phase("FIGHTING")
+            elapsed = 0.0   # the fight clock starts now
         if self.phase == "FIGHTING":
             active = min(elapsed, self.round_time)
             for player in self.players.values():
@@ -95,7 +189,7 @@ class GameEngine:
             if self.round_time == 0.0:
                 self._end_round(now)
         if self.phase == "ROUND_END" and now >= self.round_end_at:
-            self.phase = "MATCH_END"
+            self._set_phase("MATCH_END")
             self.transitions.append("MATCH_END")
 
     def pop_transitions(self):
@@ -106,7 +200,7 @@ class GameEngine:
     def _end_round(self, now):
         if self.phase != "FIGHTING":
             return
-        self.phase = "ROUND_END"
+        self._set_phase("ROUND_END")
         self.round_end_at = now + ROUND_END_SECONDS
         for player in self.players.values():
             player.guard_until = 0.0
@@ -171,6 +265,8 @@ class GameEngine:
                 "is_blocking": self.phase == "FIGHTING" and player.guard_until > now,
                 "attack_multiplier": 1.0,
                 "attack_multiplier_remaining_ms": 0,
+                "connected": player.connected,
+                "ready": player.ready,
             }
         return {
             "player_1": player_state(self.players[1]),
@@ -178,4 +274,6 @@ class GameEngine:
             "round_time": round(self.round_time, 2),
             "state": self.phase,
             "active_items": [],
+            "phase_remaining_ms": self.phase_remaining_ms(),
+            "match_result": self.match_result(),
         }
