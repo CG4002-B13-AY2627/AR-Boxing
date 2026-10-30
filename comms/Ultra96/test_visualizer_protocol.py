@@ -60,11 +60,15 @@ class HelloValidationTests(unittest.TestCase):
         ):
             self.assertIsNone(decode_hello(payload))
 
-    def test_welcome_and_state_match_canonical_v2_schemas(self):
-        from jsonschema import Draft202012Validator
-        from contract_validation import contracts_directory
-        contracts = contracts_directory()
-        self.assertTrue((contracts / "game-event.schema.json").is_file(), "Matching contracts required")
+    def test_welcome_and_state_match_canonical_v2_schemas_when_available(self):
+        try:
+            from jsonschema import Draft202012Validator
+        except ImportError:
+            self.skipTest("jsonschema is not installed")
+        default_contracts = Path(__file__).resolve().parents[3] / "CG4002-Viz" / "contracts"
+        contracts = Path(os.environ.get("CG4002_CONTRACTS_DIR", default_contracts))
+        if not (contracts / "game-event.schema.json").is_file():
+            self.skipTest("canonical CG4002-Viz contracts checkout is unavailable")
 
         hub = PhoneHub()
         cases = (
@@ -132,5 +136,301 @@ class AttackLedgerTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(hub.event_seq, 1)
 
 
+@unittest.skipUnless(shutil.which("openssl"), "openssl is required for TLS test")
+class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
+    async def test_strict_tls_two_players_rejection_and_reconnect(self):
+        with tempfile.TemporaryDirectory() as directory:
+            cert = Path(directory) / "test.crt"
+            key = Path(directory) / "test.key"
+            subprocess.run([
+                "openssl", "req", "-x509", "-newkey", "rsa:2048", "-nodes",
+                "-keyout", str(key), "-out", str(cert), "-days", "1",
+                "-subj", "/CN=127.0.0.1",
+                "-addext", "subjectAltName=IP:127.0.0.1",
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-# Real menu, attack, pickup and reconnect coverage is in test_multiplayer.py.
+            server_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+            server_tls.load_cert_chain(cert, key)
+            client_tls = ssl.create_default_context(cafile=str(cert))
+            clock = FakeClock()
+            hub = PhoneHub(engine=GameEngine(clock=clock))
+            validators = {}
+            try:
+                from jsonschema import Draft202012Validator
+                default_contracts = Path(__file__).resolve().parents[3] / "CG4002-Viz" / "contracts"
+                contracts = Path(os.environ.get("CG4002_CONTRACTS_DIR", default_contracts))
+                for name in ("punch-attempt", "game-event", "match-state"):
+                    schema = json.loads((contracts / (name + ".schema.json")).read_text(encoding="utf8"))
+                    validators[name] = Draft202012Validator(schema)
+            except (ImportError, FileNotFoundError):
+                validators = {}
+            async with websockets.serve(
+                hub.handle, "127.0.0.1", 0, ssl=server_tls, max_size=65536,
+            ) as server:
+                url = "wss://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+
+                # An untrusted chain must fail; no test ever disables validation.
+                with self.assertRaises((ssl.SSLError, OSError)):
+                    async with websockets.connect(url):
+                        pass
+
+                async with websockets.connect(url, ssl=client_tls) as one:
+                    await one.send(hello("phone-one", 1))
+                    welcome_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                    state_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                    self.assertEqual(welcome_one["player_id"], 1)
+                    self.assertEqual(state_one["type"], "MatchState")
+
+                    async with websockets.connect(url, ssl=client_tls) as two:
+                        await two.send(hello("phone-two", 2))
+                        welcome_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                        state_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                        self.assertEqual(welcome_two["player_id"], 2)
+                        self.assertEqual(welcome_one["stream_id"], welcome_two["stream_id"])
+                        self.assertEqual(state_one["match_id"], state_two["match_id"])
+                        fighting_one = json.loads(await one.recv())
+                        self.assertEqual(fighting_one["state"], "FIGHTING")
+                        self.assertEqual(state_two["state"], "FIGHTING")
+
+                        async with websockets.connect(url, ssl=client_tls) as duplicate:
+                            await duplicate.send(hello("intruder", 1))
+                            with self.assertRaises(websockets.exceptions.ConnectionClosed) as error:
+                                await duplicate.recv()
+                            self.assertEqual(error.exception.rcvd.code, 1008)
+
+                        for source, wire, outcome in (
+                            (1, "TARGET_TRACKED", "HIT"),
+                            (2, "TARGET_NOT_TRACKED", "MISS"),
+                            (1, "TRACKING_UNAVAILABLE", "MISS"),
+                        ):
+                            before = hub.health[3 - source]
+                            task = asyncio.create_task(hub.request_punch(source, "JAB", 0.9, 0.5))
+                            requester = one if source == 1 else two
+                            attempt = await receive_type(requester, "PunchAttempt")
+                            self.assertEqual(attempt["type"], "PunchAttempt")
+                            if validators:
+                                validators["punch-attempt"].validate(attempt)
+                            response = {"type": "PunchObservation", "protocol_version": 2,
+                                        "match_id": attempt["match_id"],
+                                        "stream_id": attempt["stream_id"],
+                                        "attack_id": attempt["attack_id"],
+                                        "observer_player": source, "observation": wire,
+                                        "client_timestamp": 123}
+                            if wire == "TARGET_TRACKED":
+                                response["target_age_ms"] = 0
+                            await requester.send(json.dumps(response))
+                            event_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                            event_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                            final_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                            final_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                            self.assertEqual(event_one, event_two)
+                            self.assertEqual(final_one, final_two)
+                            if validators:
+                                validators["game-event"].validate(event_one)
+                                validators["match-state"].validate(final_one)
+                            self.assertEqual(event_one["outcome"], outcome)
+                            self.assertEqual(final_one["player_1"]["health"], hub.health[1])
+                            self.assertEqual(final_one["player_2"]["health"], hub.health[2])
+                            self.assertEqual(event_one["damage"] > 0, outcome == "HIT")
+                            self.assertEqual(before - hub.health[3 - source], event_one["damage"])
+                            await task
+                            if wire == "TARGET_TRACKED":
+                                conflict = {**response, "observation": "TARGET_NOT_TRACKED"}
+                                await requester.send(json.dumps(conflict))
+                                with self.assertRaises(asyncio.TimeoutError):
+                                    await asyncio.wait_for(requester.recv(), 0.03)
+                            await requester.send(json.dumps(response))
+                            self.assertEqual(json.loads(await requester.recv()), event_one)
+                            replay_state = json.loads(await requester.recv())
+                            self.assertEqual(replay_state["player_1"]["health"], hub.health[1])
+                            self.assertEqual(replay_state["player_2"]["health"], hub.health[2])
+                            other = two if source == 1 else one
+                            with self.assertRaises(asyncio.TimeoutError):
+                                await asyncio.wait_for(other.recv(), 0.03)
+                            clock.advance(1.1)
+
+                        guard = await hub.request_guard(2, guard_id="legacy-test-guard-1")
+                        self.assertEqual(json.loads(await one.recv()), guard)
+                        self.assertEqual(json.loads(await two.recv()), guard)
+                        guard_one = json.loads(await one.recv())
+                        self.assertEqual(guard_one, json.loads(await two.recv()))
+                        self.assertTrue(guard_one["player_2"]["is_blocking"])
+                        task = asyncio.create_task(hub.request_punch(1, "JAB", 0.9, 0.5))
+                        attempt = await receive_type(one, "PunchAttempt")
+                        await one.send(json.dumps({
+                            "type": "PunchObservation", "protocol_version": 2,
+                            "match_id": attempt["match_id"],
+                            "stream_id": attempt["stream_id"],
+                            "attack_id": attempt["attack_id"],
+                            "observer_player": 1, "observation": "TARGET_TRACKED",
+                            "target_age_ms": 0, "client_timestamp": 126,
+                        }))
+                        blocked_one = json.loads(await one.recv())
+                        blocked_two = json.loads(await two.recv())
+                        self.assertEqual(blocked_one, blocked_two)
+                        self.assertEqual(blocked_one["outcome"], "BLOCK")
+                        self.assertEqual(blocked_one["damage"], 0.75)
+                        self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        await task
+                        clock.advance(1.1)
+
+                        # A duplicated engine request with the same stable ID
+                        # creates only one attempt, one event, and one mutation.
+                        stable_id = "engine-attack-001"
+                        before = hub.health[2]
+                        first = asyncio.create_task(hub.request_punch(
+                            1, "JAB", 0.9, 0.5, attack_id=stable_id))
+                        second = asyncio.create_task(hub.request_punch(
+                            1, "JAB", 0.9, 0.5, attack_id=stable_id))
+                        stable_attempt = json.loads(await asyncio.wait_for(one.recv(), 3))
+                        self.assertEqual(stable_attempt["attack_id"], stable_id)
+                        stable_observation = {
+                            "type": "PunchObservation", "protocol_version": 2,
+                            "match_id": stable_attempt["match_id"],
+                            "stream_id": stable_attempt["stream_id"],
+                            "attack_id": stable_id, "observer_player": 1,
+                            "observation": "TARGET_TRACKED", "target_age_ms": 0,
+                            "client_timestamp": 128,
+                        }
+                        await one.send(json.dumps(stable_observation))
+                        await one.send(json.dumps(stable_observation))
+                        stable_one = json.loads(await one.recv())
+                        self.assertEqual(stable_one, json.loads(await two.recv()))
+                        self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        self.assertEqual(await first, await second)
+                        self.assertEqual(before - hub.health[2], stable_one["damage"])
+                        self.assertEqual(await hub.request_punch(
+                            1, "JAB", 0.9, 0.5, attack_id=stable_id), stable_one)
+                        with self.assertRaises(ValueError):
+                            await hub.request_punch(
+                                1, "CROSS", 0.9, 0.5, attack_id=stable_id)
+                        try:
+                            replay = json.loads(await asyncio.wait_for(one.recv(), 0.03))
+                        except asyncio.TimeoutError:
+                            pass  # duplicate arrived while still pending
+                        else:
+                            self.assertEqual(replay, stable_one)
+                            self.assertEqual(json.loads(await one.recv())["type"], "MatchState")
+                        with self.assertRaises(asyncio.TimeoutError):
+                            await asyncio.wait_for(one.recv(), 0.03)
+                        clock.advance(1.1)
+
+                        # The other phone cannot answer an attacker's request.
+                        task = asyncio.create_task(hub.request_punch(1, "JAB", 0.9, 0.5))
+                        attempt = await receive_type(one, "PunchAttempt")
+                        wrong = {"type": "PunchObservation", "protocol_version": 2,
+                                 "match_id": attempt["match_id"],
+                                 "stream_id": attempt["stream_id"],
+                                 "attack_id": attempt["attack_id"],
+                                 "observer_player": 2,
+                                 "observation": "TARGET_TRACKED",
+                                 "target_age_ms": 0, "client_timestamp": 125}
+                        await two.send(json.dumps(wrong))
+                        self.assertFalse(task.done())
+                        wrong["observer_player"] = 1
+                        wrong["observation"] = "TARGET_NOT_TRACKED"
+                        await one.send(json.dumps(wrong))
+                        self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        await task
+                        clock.advance(1.1)
+
+                        # No response fails safe to a zero-damage miss.
+                        task = asyncio.create_task(hub.request_punch(
+                            1, "JAB", 0.9, 0.5, response_timeout_ms=100))
+                        await receive_type(one, "PunchAttempt")
+                        timeout_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                        timeout_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                        self.assertEqual(timeout_one, timeout_two)
+                        self.assertEqual(timeout_one["outcome"], "MISS")
+                        self.assertEqual(timeout_one["damage"], 0.0)
+                        self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        await task
+                        # A late observation cannot turn the timeout miss into a hit.
+                        await one.send(json.dumps({
+                            "type": "PunchObservation", "protocol_version": 2,
+                            "match_id": timeout_one["match_id"],
+                            "stream_id": timeout_one["stream_id"],
+                            "attack_id": timeout_one["attack_id"],
+                            "observer_player": 1, "observation": "TARGET_TRACKED",
+                            "target_age_ms": 0, "client_timestamp": 129,
+                        }))
+                        self.assertEqual(json.loads(await one.recv()), timeout_one)
+                        await one.recv()  # fresh convergence state for requester only
+                        clock.advance(1.1)
+
+                        # Exercise the sensor-pipeline thread's handoff to the
+                        # same phone hub without requiring a physical ESP32.
+                        import comms_server
+                        with comms_server.pipeline_lock:
+                            comms_server.visualizer_loop = asyncio.get_running_loop()
+                            comms_server.visualizer_hub = hub
+                        try:
+                            comms_server.push_random_ai_event(1)
+                            pipeline_attempt = await receive_type(one, "PunchAttempt")
+                            self.assertEqual(pipeline_attempt["type"], "PunchAttempt")
+                            await one.send(json.dumps({
+                                "type": "PunchObservation", "protocol_version": 2,
+                                "match_id": pipeline_attempt["match_id"],
+                                "stream_id": pipeline_attempt["stream_id"],
+                                "attack_id": pipeline_attempt["attack_id"],
+                                "observer_player": 1,
+                                "observation": "TARGET_NOT_TRACKED", "client_timestamp": 124,
+                            }))
+                            pipeline_one = json.loads(await asyncio.wait_for(one.recv(), 3))
+                            pipeline_two = json.loads(await asyncio.wait_for(two.recv(), 3))
+                            self.assertEqual(pipeline_one, pipeline_two)
+                            self.assertEqual(pipeline_one["type"], "GameEvent")
+                            self.assertEqual(pipeline_one["damage"], 0.0)
+                            self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
+                        finally:
+                            with comms_server.pipeline_lock:
+                                comms_server.visualizer_loop = None
+                                comms_server.visualizer_hub = None
+                        clock.advance(1.1)
+
+                        # Disconnect before replying, rejoin the same reserved
+                        # player slot, and finish the original pending ID once.
+                        reconnect_task = asyncio.create_task(hub.request_punch(
+                            1, "CROSS", 0.9, 0.5, response_timeout_ms=2000,
+                            attack_id="reconnect-attack-001"))
+                        first_attempt = await receive_type(one, "PunchAttempt")
+                        await one.close()
+                        await asyncio.sleep(0.02)
+                        async with websockets.connect(url, ssl=client_tls) as resumed:
+                            await resumed.send(hello("phone-one", 1))
+                            self.assertEqual(json.loads(await resumed.recv())["player_id"], 1)
+                            self.assertEqual(json.loads(await resumed.recv())["type"], "MatchState")
+                            resent = json.loads(await asyncio.wait_for(resumed.recv(), 3))
+                            self.assertEqual(resent["attack_id"], first_attempt["attack_id"])
+                            resumed_observation = {
+                                "type": "PunchObservation", "protocol_version": 2,
+                                "match_id": resent["match_id"],
+                                "stream_id": resent["stream_id"],
+                                "attack_id": resent["attack_id"],
+                                "observer_player": 1,
+                                "observation": "TARGET_TRACKED", "target_age_ms": 0,
+                                "client_timestamp": 130,
+                            }
+                            await resumed.send(json.dumps(resumed_observation))
+                            final_resumed = json.loads(await resumed.recv())
+                            self.assertEqual(final_resumed, await receive_type(two, "GameEvent"))
+                            self.assertEqual(json.loads(await resumed.recv()), json.loads(await two.recv()))
+                            self.assertEqual(await reconnect_task, final_resumed)
+                            before_retry = hub.health[2]
+                            await resumed.send(json.dumps(resumed_observation))
+                            self.assertEqual(json.loads(await resumed.recv()), final_resumed)
+                            await resumed.recv()  # fresh state acknowledges the retry
+                            self.assertEqual(hub.health[2], before_retry)
+                            with self.assertRaises(asyncio.TimeoutError):
+                                await asyncio.wait_for(two.recv(), 0.03)
+
+                await asyncio.sleep(0.05)
+                async with websockets.connect(url, ssl=client_tls) as rejoined:
+                    await rejoined.send(hello("phone-one", 1))
+                    self.assertEqual(json.loads(await rejoined.recv())["player_id"], 1)
+                    self.assertEqual(json.loads(await rejoined.recv())["type"], "MatchState")
+
+
+if __name__ == "__main__":
+    unittest.main()

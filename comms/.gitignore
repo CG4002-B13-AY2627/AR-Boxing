@@ -3,5 +3,4 @@ __pycache__/
 .venv/
 .local-certs/
 Ultra96/wss-certs/
-Ultra96/server.key
-Ultra96/server.crt
+*.key

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Ultra96 CPU authority with deterministic inputs and hardware diagnostics.
+"""One-process AI -> PunchAttempt -> observation -> final GameEvent WSS demo.
 
 Use --source keyboard for live, no-FPGA input, --source fake for a scripted
 end-to-end test, or --source fpga-noise for the seeded-noise model test.
@@ -25,12 +25,93 @@ from game_engine import GameEngine
 from visualizer_protocol import MAX_MESSAGE_BYTES, PUNCHES, PhoneHub, periodic_states
 
 
-from classified_actions import (
-    AttackIds, DEFAULT_ACTION_MAP, FakeAiEvent, IGNORED_AI_ACTIONS,
-    UNIMPLEMENTED_AI_ACTIONS, send_classified_action,
-)
-from contract_validation import contracts_directory
-from server_runtime import serve_phones
+# Default boxing convention: left straight -> JAB, right straight -> CROSS.
+# Confirm stance with the team; --action-map can override either mapping.
+DEFAULT_ACTION_MAP = {
+    "l_straight": "JAB", "r_straight": "CROSS",
+    "l_hook": "LEFT_HOOK", "r_hook": "RIGHT_HOOK",
+    "l_uppercut": "LEFT_UPPERCUT", "r_uppercut": "RIGHT_UPPERCUT",
+}
+IGNORED_AI_ACTIONS = frozenset({"idle"})
+UNIMPLEMENTED_AI_ACTIONS = frozenset({"weave", "pickup", "use"})
+
+
+@dataclass(frozen=True)
+class FakeAiEvent:
+    """Model-shaped event for testing the real attack path without PYNQ."""
+
+    action: str
+    t: float
+    confidence: float
+    intensity: float = 0.0
+    edge: str = None
+
+
+class AttackIds:
+    """Assign one stable ID per classified event; reuse it on a retry."""
+
+    def __init__(self, run_id=None):
+        self.run_id = run_id or uuid.uuid4().hex[:12]
+        self.counter = 0
+
+    def next(self, player):
+        self.counter += 1
+        return f"ai-{self.run_id}-p{player + 1}-{self.counter}"
+
+
+async def send_ai_demo(hub, player, event, action_map, demo_intensity,
+                       response_timeout_ms=750, attack_id=None):
+    """Map one AI event into the hub's authoritative request/resolve path."""
+    if player not in (0, 1):
+        raise ValueError("AI player must be 0 or 1")
+    print(f"[AI RAW] player={player} action={event.action} "
+          f"sample_t={event.t:.3f}s confidence={event.confidence:.3f} "
+          f"intensity={event.intensity:.3f} m/s^2 edge={event.edge}", flush=True)
+    if event.action in IGNORED_AI_ACTIONS:
+        print(f"[AI IGNORE] {event.action}: no game action", flush=True)
+        return None
+    if event.action in UNIMPLEMENTED_AI_ACTIONS:
+        print(f"[AI UNSUPPORTED] {event.action}: current GameEngine has no handler; "
+              "no punch/guard invented", flush=True)
+        return None
+    if event.action == "block":
+        if event.edge not in ("start", "end"):
+            raise ValueError("block needs edge='start' or 'end'")
+        if attack_id is None:
+            raise ValueError("a stable action ID is required for block events")
+        duplicate = attack_id in hub.guard_actions
+        final = await hub.request_guard(
+            player + 1, active=event.edge == "start",
+            confidence=float(event.confidence), guard_id=attack_id)
+        if final is None:
+            print(f"[AI GUARD REJECTED] P{player + 1} {event.edge} id={attack_id}", flush=True)
+        else:
+            label = "AI GUARD CACHED" if duplicate else "AI GUARD"
+            print(f"[{label}] P{player + 1} {event.edge} id={attack_id} "
+                  f"seq={final['seq']}; MatchState carries is_blocking", flush=True)
+        return final
+    punch = action_map.get(event.action)
+    if event.edge is not None or punch is None:
+        print(f"[AI SKIP] {event.action}: unmapped or invalid punch edge; no punch invented", flush=True)
+        return None
+    if attack_id is None:
+        raise ValueError("a stable attack_id is required for each AI event")
+    duplicate = attack_id in hub.attacks
+    print(f"[AI REQUEST] attack_id={attack_id} P{player + 1} {punch} "
+          f"demo_intensity={demo_intensity}", flush=True)
+    final = await hub.request_punch(
+        player + 1, punch, float(event.confidence), demo_intensity,
+        response_timeout_ms=response_timeout_ms, attack_id=attack_id,
+    )
+    if final is None:
+        print(f"[AI SKIP] attack_id={attack_id} rejected by Game Engine "
+              "(lobby, paused, animation, guard, or stamina)", flush=True)
+        return None
+    label = "AI CACHED" if duplicate else "AI FINAL"
+    print(f"[{label}] attack_id={attack_id} seq={final['seq']} "
+          f"{final['outcome']} damage={final['damage']}; "
+          "PhoneHub owns GameEvent + MatchState delivery", flush=True)
+    return final
 
 
 def run_model(args, hub, loop, action_map, attack_ids):
@@ -86,7 +167,7 @@ def _run_model(args, hub, loop, action_map, attack_ids):
                     # crosses from the model worker to the same-process WSS loop.
                     attack_id = attack_ids.next(player)
                     future = asyncio.run_coroutine_threadsafe(
-                        send_classified_action(hub, player, event, action_map,
+                        send_ai_demo(hub, player, event, action_map,
                                      args.demo_intensity, args.response_timeout_ms,
                                      attack_id), loop)
                     resolved += future.result(timeout=10) is not None
@@ -109,12 +190,12 @@ async def run_fake(args, hub, action_map, attack_ids):
         event = FakeAiEvent(action, time.monotonic(), args.fake_confidence,
                             edge=getattr(args, "fake_edge", None))
         attack_id = attack_ids.next(player)
-        final = await send_classified_action(hub, player, event, action_map,
+        final = await send_ai_demo(hub, player, event, action_map,
                                    args.demo_intensity, args.response_timeout_ms,
                                    attack_id)
         if args.fake_retry and final is not None:
             seq, health = hub.event_seq, dict(hub.health)
-            cached = await send_classified_action(hub, player, event, action_map,
+            cached = await send_ai_demo(hub, player, event, action_map,
                                         args.demo_intensity, args.response_timeout_ms,
                                         attack_id)
             if cached != final or hub.event_seq != seq or hub.health != health:
@@ -145,7 +226,7 @@ class KeyboardInput:
     def _emit(self, key):
         def enqueue():
             if not self.queue.full():
-                    self.queue.put_nowait(key.lower() if len(key) == 1 else key)
+                self.queue.put_nowait(key.lower())
         try:
             self.loop.call_soon_threadsafe(enqueue)
         except RuntimeError:  # event loop already closed during shutdown
@@ -168,11 +249,8 @@ class KeyboardInput:
                 if not line:
                     self._emit("q")
                     return
-                if line.strip().startswith(("spawn ", "pickup ")):
-                    self._emit(line.strip())
-                else:
-                    for key in line.strip():
-                        self._emit(key)
+                for key in line.strip():
+                    self._emit(key)
             return
         if sys.platform == "win32":
             import msvcrt
@@ -221,35 +299,23 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     """Run console commands; a queue makes the same path testable without a TTY."""
     selected = 1
     last = None
-    print("[KEYS] 1/2 select player | j/c straight | h/b hook | u/n uppercut | "
-          "g guard | x end guard | k pickup | p pause | s state | r retry last ID | ? help | q quit",
+    print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
+          "g guard | x end guard | s state | r retry last ID | ? help | q quit",
           flush=True)
     print_match_state(hub)
     while True:
         key = await commands.get()
-        parts = key.split()
-        if len(parts) >= 2 and parts[0] in ("spawn", "pickup") and parts[1] in ("1", "2"):
-            player = int(parts[1])
-            if parts[0] == "spawn":
-                await hub.spawn_health(player)
-            else:
-                await hub.request_pickup(player, parts[2] if len(parts) > 2 else attack_ids.next(player - 1))
-            continue
         if key == "q":
             print("[STOP] keyboard demo closed", flush=True)
             return
         if key == "?":
             print("[KEYS] 1/2 select player | j jab | h hook | u uppercut | "
-                  "g guard | x end guard | k pickup | p pause | s state | r retry last ID | ? help | q quit",
+                  "g guard | x end guard | s state | r retry last ID | ? help | q quit",
                   flush=True)
             continue
         if key in ("1", "2"):
             selected = int(key)
             print(f"[SELECT] player {selected}", flush=True)
-            continue
-        if key == "p":
-            await hub.operator_pause()
-            print_match_state(hub)
             continue
         if key == "s":
             await hub.broadcast_state()
@@ -261,14 +327,10 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
                 continue
             kind, player, value, action_id = last
             print(f"[RETRY] {action_id}", flush=True)
-        elif key in ("j", "c", "h", "b", "u", "n"):
+        elif key in ("j", "h", "u"):
             kind, player = "punch", selected
-            value = {"j": "JAB", "c": "CROSS", "b": "RIGHT_HOOK", "n": "RIGHT_UPPERCUT", "h": "LEFT_HOOK" if player == 1 else "RIGHT_HOOK",
+            value = {"j": "JAB", "h": "LEFT_HOOK" if player == 1 else "RIGHT_HOOK",
                      "u": "LEFT_UPPERCUT" if player == 1 else "RIGHT_UPPERCUT"}[key]
-            action_id = attack_ids.next(player - 1)
-            last = kind, player, value, action_id
-        elif key == "k":
-            kind, player, value = "pickup", selected, None
             action_id = attack_ids.next(player - 1)
             last = kind, player, value, action_id
         elif key in ("g", "x"):
@@ -280,10 +342,6 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
                 print(f"[KEYS] unknown key {key!r}; press ? for help", flush=True)
             continue
 
-        if kind == "pickup":
-            check = await hub.request_pickup(player, action_id)
-            print("[PICKUP]", check, flush=True)
-            continue
         if kind == "punch":
             if key != "r":
                 print(f"[ATTEMPT] P{player} {value} id={action_id}; "
@@ -317,36 +375,6 @@ async def run_keyboard(args, hub, attack_ids):
         keyboard.close()
 
 
-async def run_scripted(args, hub, ids):
-    if args.script is None:
-        raise ValueError("--source scripted requires --script")
-    actions = json.loads(args.script.read_text())
-    if not isinstance(actions, list):
-        raise ValueError("script must be a list")
-    previous = -1
-    for action in actions:
-        at, player, kind = action["at"], action["player"], action["action"]
-        if (type(at) not in (int, float) or not __import__("math").isfinite(at) or
-                at < previous or player not in (1, 2) or
-                kind not in {"punch", "guard", "end_guard", "pickup", "pause"}):
-            raise ValueError("invalid or unordered scripted action")
-        previous = at
-        while hub.engine.fight_time < at or hub.engine.phase != "FIGHTING":
-            if hub.engine.phase in ("ROUND_END", "MATCH_END"):
-                return
-            await asyncio.sleep(.02)
-        stable_id = action.get("id") or ids.next(player - 1)
-        if kind == "punch":
-            await hub.request_punch(player, action["punch"], .95, args.demo_intensity,
-                args.response_timeout_ms, stable_id)
-        elif kind in ("guard", "end_guard"):
-            await hub.request_guard(player, kind == "guard", guard_id=stable_id)
-        elif kind == "pickup":
-            await hub.request_pickup(player, stable_id)
-        else:
-            await hub.operator_pause()
-
-
 async def main(args):
     if args.source == "fpga-noise" and not (args.ai_dir / "src").is_dir():
         raise RuntimeError(f"AI src/ directory not found: {args.ai_dir / 'src'}")
@@ -365,10 +393,10 @@ async def main(args):
         elif (args.fake_action not in action_map and
               args.fake_action not in IGNORED_AI_ACTIONS | UNIMPLEMENTED_AI_ACTIONS | {"block"}):
             raise ValueError(f"fake action {args.fake_action!r} is not in the action map")
-    import os
-    os.environ["CG4002_CONTRACTS_DIR"] = str(contracts_directory(args.contracts_dir))
-    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds, required_players=args.wait_players,
-        countdown_seconds=args.countdown_seconds, spawn_seconds=args.spawn_seconds, seed=4002),
+    ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+    ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+    ctx.load_cert_chain(args.cert, args.key)
+    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds),
                    required_players=args.wait_players)
     attack_ids = AttackIds()
 
@@ -379,7 +407,8 @@ async def main(args):
         finally:
             print("[PHONE] disconnected", flush=True)
 
-    async with serve_phones(hub, args):
+    async with websockets.serve(handle, args.host, args.port, ssl=ctx,
+                                max_size=MAX_MESSAGE_BYTES):
         state_task = asyncio.create_task(periodic_states(hub))
         try:
             print(f"[WSS] host={args.host} port={args.port} stream={hub.stream_id} "
@@ -390,14 +419,13 @@ async def main(args):
                 await run_keyboard(args, hub, attack_ids)
             else:
                 print(f"[WAIT] connect {args.wait_players} phone(s); complete ClientHello first", flush=True)
-                while hub.engine.phase != "FIGHTING":
+                while (len(hub.ready) < args.wait_players or
+                       (args.source == "fake" and args.fake_player not in hub.ready)):
                     await asyncio.sleep(0.2)
                 print(f"[READY] phone handshake complete; source starts in "
                       f"{args.start_delay:g} seconds", flush=True)
                 await asyncio.sleep(args.start_delay)
-                if args.source == "scripted":
-                    await run_scripted(args, hub, attack_ids)
-                elif args.source == "fake":
+                if args.source == "fake":
                     await run_fake(args, hub, action_map, attack_ids)
                 else:
                     await asyncio.to_thread(
@@ -408,30 +436,24 @@ async def main(args):
         finally:
             state_task.cancel()
             await asyncio.gather(state_task, return_exceptions=True)
-            await hub.close()
 
 
 if __name__ == "__main__":
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--source", choices=("keyboard", "fake", "scripted", "fpga-noise"),
-                        default="keyboard",
+    parser.add_argument("--source", choices=("keyboard", "fake", "fpga-noise"),
+                        default="fpga-noise",
                         help="keyboard and fake need no FPGA; fpga-noise uses seeded model input")
     parser.add_argument("--ai-dir", type=Path, default=Path("/home/xilinx/ai/demo"),
                         help="PYNQ demo directory, used only by fpga-noise")
-    parser.add_argument("--cert", type=Path, default=here.parent / ".local-certs" / "server.crt",
+    parser.add_argument("--cert", type=Path, default=here / "server.crt",
                         help="TLS leaf certificate trusted by each phone")
-    parser.add_argument("--key", type=Path, default=here.parent / ".local-certs" / "server.key",
+    parser.add_argument("--key", type=Path, default=here / "server.key",
                         help="matching private key; keep it off Git")
     parser.add_argument("--host", default="0.0.0.0", help="WSS bind address")
     parser.add_argument("--port", type=int, default=8889, help="WSS listen port")
     parser.add_argument("--wait-players", type=int, choices=(1, 2), default=2,
                         help="registered phones required before injection (default: 2)")
-    parser.add_argument("--insecure-ws", action="store_true", help="Explicit development-only plain WS")
-    parser.add_argument("--contracts-dir", type=Path)
-    parser.add_argument("--countdown-seconds", type=float, default=3.0)
-    parser.add_argument("--spawn-seconds", type=float, default=30.0)
-    parser.add_argument("--script", type=Path, help="Scripted classified actions, ordered by fighting time")
     parser.add_argument("--samples", type=int, default=2000,
                         help="seeded-noise samples for fpga-noise source")
     parser.add_argument("--demo-intensity", type=float, default=0.6,

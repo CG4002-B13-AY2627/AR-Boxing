@@ -23,12 +23,8 @@ import protocol as P
 import websockets
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES
-from classified_actions import send_classified_action, AttackIds, DEFAULT_ACTION_MAP
-from server_runtime import serve_phones
-try:
-    from live_alignment import Aligner, CHANNELS
-except ImportError as error:
-    raise SystemExit("Live hardware gate: communications/AI owner must restore live_alignment.py and expected_norm_stats.json before running this adapter") from error
+from ai_to_visualizer_demo import send_ai_demo, AttackIds, DEFAULT_ACTION_MAP
+from live_alignment import Aligner, CHANNELS
 
 # Deliberately a NEW frame type: old timestamps must never silently enter AI.
 SYNC_SENSOR = P.SYNC_SENSOR
@@ -68,7 +64,7 @@ class Pipeline:
             return
         if self.hub.engine.phase != 'FIGHTING':
             return
-        task = asyncio.create_task(send_classified_action(
+        task = asyncio.create_task(send_ai_demo(
             self.hub, player-1, event, DEFAULT_ACTION_MAP,
             self.args.demo_intensity, 750, self.ids.next(player-1)))
         self.pending.add(task)
@@ -243,7 +239,8 @@ async def main(args):
     tick = None
     try:
         async with await asyncio.start_server(gateways.handle, args.host, 8888, ssl=tls) as esp:
-            async with serve_phones(hub, args):
+            async with websockets.serve(hub.handle, args.host, 8889, ssl=tls,
+                                        max_size=MAX_MESSAGE_BYTES, close_timeout=2):
                 tick = asyncio.create_task(periodic_states(hub))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
                 previous_pairs = previous_windows = 0
@@ -300,8 +297,6 @@ if __name__ == '__main__':
     parser.add_argument('--cert', type=Path, default=here / 'server.crt')
     parser.add_argument('--key', type=Path, default=here / 'server.key')
     parser.add_argument('--host', default='0.0.0.0')
-    parser.add_argument('--phone-cert', type=Path, default=here.parent / '.local-certs/server.crt')
-    parser.add_argument('--phone-key', type=Path, default=here.parent / '.local-certs/server.key')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
     parser.add_argument('--round-seconds', type=float, default=90)
     parser.add_argument('--demo-intensity', type=float, default=.6)

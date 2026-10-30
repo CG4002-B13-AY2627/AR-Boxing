@@ -12,9 +12,9 @@ import unittest
 
 import websockets
 
-from visualizer_server import (
+from ai_to_visualizer_demo import (
     AttackIds, DEFAULT_ACTION_MAP, FakeAiEvent, run_fake,
-    run_keyboard_commands, send_classified_action,
+    run_keyboard_commands, send_ai_demo,
 )
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub
@@ -44,7 +44,7 @@ async def receive_type(websocket, message_type):
         message = json.loads(await asyncio.wait_for(websocket.recv(), 3))
         if message["type"] == message_type:
             return message
-        if message["type"] != "MatchState" and not (message["type"] == "GameEvent" and message.get("event") == "ROUND_TRANSITION"):
+        if message["type"] != "MatchState":
             raise AssertionError(f"unexpected {message['type']} before {message_type}")
 
 
@@ -64,7 +64,6 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
             server_tls.load_cert_chain(cert, key)
             client_tls = ssl.create_default_context(cafile=str(cert))
             hub = PhoneHub(engine=GameEngine(clock=FakeClock()))
-            hub.engine.start()
             args = SimpleNamespace(fake_confidence=0.95, demo_intensity=0.6,
                                    response_timeout_ms=1000)
             commands = asyncio.Queue()
@@ -147,7 +146,6 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
             client_tls = ssl.create_default_context(cafile=str(cert))
             clock = FakeClock()
             hub = PhoneHub(engine=GameEngine(clock=clock))
-            hub.engine.start()
             ids = AttackIds("fixture-run")
 
             async with websockets.serve(hub.handle, "127.0.0.1", 0, ssl=server_tls) as server:
@@ -228,7 +226,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
                             # Retrying the same classified event cannot send
                             # another attempt or apply damage a second time.
                             seq = hub.event_seq
-                            self.assertEqual(await send_classified_action(
+                            self.assertEqual(await send_ai_demo(
                                 hub, player - 1, event, DEFAULT_ACTION_MAP, 0.6,
                                 response_timeout_ms=1000, attack_id=attack_id), event_one)
                             self.assertEqual(hub.event_seq, seq)
@@ -257,7 +255,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
                             await rejoined.send(hello(2))
                             self.assertEqual(json.loads(await rejoined.recv())["player_id"], 2)
                             resumed = json.loads(await rejoined.recv())
-                            self.assertEqual(resumed["state"], "PAUSED")
+                            self.assertEqual(resumed["state"], "FIGHTING")
                             self.assertEqual(resumed, await receive_type(one, "MatchState"))
                             self.assertEqual(resumed["round_time"], remaining)
 
@@ -265,7 +263,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
         hub = PhoneHub()
         for event in (FakeAiEvent("unknown", 0.0, 0.9),
                       FakeAiEvent("l_hook", 0.0, 0.9, edge="start")):
-            self.assertIsNone(await send_classified_action(
+            self.assertIsNone(await send_ai_demo(
                 hub, 0, event, DEFAULT_ACTION_MAP, 0.6, attack_id="unused-1"))
         self.assertEqual(hub.attacks, {})
 
