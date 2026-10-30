@@ -22,7 +22,9 @@ import uuid
 
 import websockets
 from game_engine import GameEngine
-from visualizer_protocol import MAX_MESSAGE_BYTES, PUNCHES, PhoneHub, periodic_states
+from visualizer_protocol import (
+    MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS, PUNCHES, PhoneHub, periodic_states,
+)
 
 
 # Default boxing convention: left straight -> JAB, right straight -> CROSS.
@@ -417,7 +419,9 @@ async def main(args):
             print("[PHONE] disconnected", flush=True)
 
     async with websockets.serve(handle, args.host, args.port, ssl=ctx,
-                                max_size=MAX_MESSAGE_BYTES):
+                                max_size=MAX_MESSAGE_BYTES,
+                                ping_interval=PING_INTERVAL_SECONDS,
+                                ping_timeout=PING_INTERVAL_SECONDS):
         state_task = asyncio.create_task(periodic_states(hub))
         try:
             print(f"[{'WS' if ctx is None else 'WSS'}] host={args.host} port={args.port} "

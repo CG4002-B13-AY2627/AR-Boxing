@@ -72,12 +72,15 @@ class GameEngine:
         self.last_tick = clock()
         self.round_end_at = None
         self.countdown_until = None
+        self.fight_epoch = 0      # +1 each time FIGHTING (re)starts
         self.transitions = []
 
     def _set_phase(self, phase):
         self.phase = phase
         for player in self.players.values():
             player.ready = False   # ready means "for this phase" only
+        if phase == "FIGHTING":
+            self.fight_epoch += 1
         if phase == "COUNTDOWN":
             self.countdown_until = self.clock() + self.countdown_seconds
 

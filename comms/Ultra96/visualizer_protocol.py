@@ -16,6 +16,9 @@ from game_engine import COMMANDS, GameEngine
 PROTOCOL_VERSION = 2
 MAX_MESSAGE_BYTES = 65536
 HELLO_TIMEOUT_SECONDS = 5
+SEND_TIMEOUT_SECONDS = 1.0     # a phone that can't take a message in 1 s is dropped
+STATE_INTERVAL_SECONDS = 0.1   # MatchState period promised by docs/protocol.md
+PING_INTERVAL_SECONDS = 5      # websockets keepalive: a dead phone is noticed in ~10 s
 MAX_ATTACK_RECORDS = 10000
 IDENTIFIER = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,63}$")
 PUNCHES = frozenset((
@@ -123,6 +126,24 @@ def encode(message):
     return json.dumps(message, separators=(",", ":"), allow_nan=False)
 
 
+async def send_bounded(socket, payload):
+    """Send one frame, or drop that phone if it stalls; never block the others.
+
+    Returns False when the phone is gone. Its handler sees the close and
+    releases the slot (which pauses a running fight).
+    """
+    try:
+        await asyncio.wait_for(socket.send(payload), SEND_TIMEOUT_SECONDS)
+        return True
+    except asyncio.TimeoutError:
+        transport = getattr(socket, "transport", None)
+        if transport is not None:
+            transport.abort()
+        return False
+    except (websockets.exceptions.ConnectionClosed, OSError):
+        return False
+
+
 @dataclass
 class AttackRecord:
     """One attack's immutable request and its PENDING -> RESOLVED transition."""
@@ -136,6 +157,7 @@ class AttackRecord:
     attempt: dict
     observation_future: asyncio.Future
     result_future: asyncio.Future
+    fight_epoch: int = 0          # a pause in between means it can't land
     bound_socket: object = None
     observation: str = None
     final_event: dict = None
@@ -184,8 +206,9 @@ class PhoneHub:
         return {slot: player.health for slot, player in self.engine.players.items()}
 
     def claim(self, client_id, player_id, websocket):
-        if (player_id in self.active or
-                (player_id in self.owners and self.owners[player_id] != client_id)):
+        # A slot is taken only while a phone holds it. A different client_id may
+        # take a free slot (e.g. after an app reinstall); client_id was never auth.
+        if player_id in self.active:
             return False
         previous = next(
             (slot for slot, owner in self.owners.items() if owner == client_id), None
@@ -312,6 +335,7 @@ class PhoneHub:
                     attack_id, source_player, punch, confidence, intensity,
                     time.monotonic() + response_timeout_ms / 1000, attempt,
                     loop.create_future(), loop.create_future(),
+                    fight_epoch=self.engine.fight_epoch,
                 )
                 self.attacks[attack_id] = record
                 self.pending[attack_id] = record
@@ -377,9 +401,7 @@ class PhoneHub:
             record.bound_socket = socket
             attempt = dict(record.attempt)
             attempt["response_timeout_ms"] = min(2000, remaining_ms)
-            try:
-                await socket.send(encode(attempt))
-            except (websockets.exceptions.ConnectionClosed, OSError):
+            if not await send_bounded(socket, encode(attempt)):
                 if record.bound_socket is socket:
                     record.bound_socket = None
 
@@ -402,9 +424,11 @@ class PhoneHub:
                 return
             self.pending.pop(record.attack_id, None)
             target_player = 3 - record.source_player
+            # A punch thrown before a pause can't land after it: MISS, once.
+            landed = (observation == "TARGET_TRACKED" and
+                      record.fight_epoch == self.engine.fight_epoch)
             outcome, damage = self.engine.resolve_punch(
-                record.source_player, record.punch, record.intensity,
-                observation == "TARGET_TRACKED")
+                record.source_player, record.punch, record.intensity, landed)
             self.event_seq += 1
             event = {
                 "type": "GameEvent", "protocol_version": PROTOCOL_VERSION,
@@ -440,11 +464,8 @@ class PhoneHub:
             return
         record.last_replay_session = session_id
         async with self.broadcast_lock:
-            try:
-                await websocket.send(encode(record.final_event))
-                await websocket.send(encode(self.state()))
-            except (websockets.exceptions.ConnectionClosed, OSError):
-                pass
+            if await send_bounded(websocket, encode(record.final_event)):
+                await send_bounded(websocket, encode(self.state()))
 
     async def handle(self, websocket):
         player_id = None
@@ -462,17 +483,15 @@ class PhoneHub:
             self.session_serial += 1
             session_id = self.session_serial
             async with self.broadcast_lock:
-                await websocket.send(encode(self.welcome(player_id)))
+                await send_bounded(websocket, encode(self.welcome(player_id)))
                 self.ready[player_id] = websocket
                 self.engine.set_connected(player_id, True)
                 if self.auto_start and len(self.ready) >= self.required_players:
                     self.engine.start() or self.engine.resume()
                 # Everyone sees the new connected flag; the joiner gets its full state.
                 snapshot = encode(self.state())
-                await websocket.send(snapshot)
-                await asyncio.gather(
-                    *(socket.send(snapshot) for slot, socket in self.ready.items()
-                      if slot != player_id), return_exceptions=True)
+                await asyncio.gather(*(send_bounded(socket, snapshot)
+                                       for socket in self.ready.values()))
             for record in tuple(self.pending.values()):
                 if record.source_player == player_id and not record.observation_future.done():
                     await self._send_attempt(record, websocket)
@@ -515,9 +534,8 @@ class PhoneHub:
         if not sockets:
             return 0
         payload = encode(message)
-        await asyncio.gather(
-            *(socket.send(payload) for socket in sockets), return_exceptions=True
-        )
+        # Each send is bounded, so one stalled phone can't hold up the other.
+        await asyncio.gather(*(send_bounded(socket, payload) for socket in sockets))
         return len(sockets)
 
     async def broadcast_state(self):
@@ -526,7 +544,7 @@ class PhoneHub:
             await self._broadcast_transitions_locked()
             return await self.broadcast(self.state())
 
-async def periodic_states(hub, interval_seconds=1.0):
+async def periodic_states(hub, interval_seconds=STATE_INTERVAL_SECONDS):
     while True:
         await asyncio.sleep(interval_seconds)
         await hub.broadcast_state()
