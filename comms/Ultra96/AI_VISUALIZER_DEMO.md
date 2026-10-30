@@ -46,21 +46,75 @@ python -B smoke_test_visualizer_wss.py --url ws://127.0.0.1:8889 --follow 2
 The follower presses Ready / I'm set / Resume for P2 and reports every punch
 check as "target seen". Stop it with Ctrl+C mid-fight to see the pause.
 
-**Two iPhones** (TLS; each phone must trust the CA, and the leaf certificate's
-SAN must include the address the phones use, e.g. `192.168.137.1`):
-
-```sh
-python3 ai_to_visualizer_demo.py --cert server.crt --key server.key --players 2
-```
-
-Never disable certificate validation to make a phone connect. Never commit or
-copy private keys to a phone; only the CA certificate goes on the phone.
+**Two iPhones** through the laptop: see the next section.
 
 **Handshake check** against any running server (no game played):
 
 ```sh
 python -B smoke_test_visualizer_wss.py --url wss://192.168.137.1:8889 --ca ca.crt
 ```
+
+## Phones, laptop and board
+
+```
+iPhone P1 ─┐  laptop Mobile Hotspot        SSH tunnel (bytes only)     Ultra96
+iPhone P2 ─┴─> wss://192.168.137.1:8889 ───────────────────────────> 127.0.0.1:8889
+```
+
+TLS runs end to end between each phone and the board; the laptop only forwards
+bytes. The phones trust a small CA of ours, not the ESP certificate (iOS
+rejects that one's 1960-2049 validity).
+
+1. **Certificates, once** (laptop, `pip install cryptography`):
+
+   ```sh
+   python comms/Laptop/make_phone_cert.py
+   ```
+
+   Writes `ca.crt`, `ca.key`, `server.crt`, `server.key` to
+   `comms/.local-certs/phone-wss/` (ignored by Git). The server certificate
+   covers `192.168.137.1` and `127.0.0.1` for 397 days; add `--host` for other
+   addresses. It refuses to overwrite an existing set.
+2. **Board:** copy only `server.crt` and `server.key`
+   (`ssh xilinx@<board> mkdir -p certs`, then
+   `scp server.crt server.key xilinx@<board>:certs/`).
+3. **Each iPhone:** AirDrop or mail `ca.crt`, install the profile, then
+   Settings > General > About > Certificate Trust Settings > turn on full
+   trust. Only `ca.crt` ever goes on a phone; `ca.key` stays on the laptop.
+4. **Run the server on the board**, bound to loopback since only the tunnel
+   reaches it:
+
+   ```sh
+   python3 ai_to_visualizer_demo.py --host 127.0.0.1 --cert ~/certs/server.crt --key ~/certs/server.key --players 2
+   ```
+
+   With the wearables, run `esp_ai_live_dashboard.py` instead (never both) and
+   give it the phone pair with `--phone-cert ~/certs/server.crt --phone-key
+   ~/certs/server.key`; `--cert`/`--key` stay the ESP certificate.
+5. **Laptop:** turn on Mobile Hotspot (gateway `192.168.137.1`), allow
+   inbound TCP 8889 in the firewall, and open the tunnel (add
+   `-L 0.0.0.0:8888:127.0.0.1:8888` for the ESPs on the live path):
+
+   ```sh
+   ssh -N -L 0.0.0.0:8889:127.0.0.1:8889 xilinx@<board>
+   ```
+
+6. **Check from the laptop** before touching the phones:
+
+   ```sh
+   python comms/Ultra96/smoke_test_visualizer_wss.py --url wss://192.168.137.1:8889 --ca comms/.local-certs/phone-wss/ca.crt
+   ```
+
+7. **Phones:** join the hotspot; in the app use `wss://192.168.137.1:8889`,
+   P1 on one phone and P2 on the other (until the title card gets its own
+   address and P1/P2 setting, set Server Url and Requested Player Id in Main
+   before building). Safari to
+   `https://192.168.137.1:8889` is a quick trust check: a WebSocket error page
+   is fine, a certificate warning means step 3 isn't done.
+
+Never disable certificate validation to make a phone connect, and never commit
+or send a `.key` file. The old `Ultra96/wss-certs` keys are in Git history:
+don't use them.
 
 ## Operator keys (`--source keyboard`, the default)
 

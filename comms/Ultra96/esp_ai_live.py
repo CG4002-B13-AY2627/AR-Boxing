@@ -22,7 +22,7 @@ import time
 import protocol as P
 import websockets
 from game_engine import GameEngine
-from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES
+from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS
 from ai_to_visualizer_demo import send_ai_demo, AttackIds, DEFAULT_ACTION_MAP
 from live_alignment import Aligner, CHANNELS
 
@@ -235,12 +235,21 @@ async def main(args):
     tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
     tls.minimum_version = ssl.TLSVersion.TLSv1_2
     tls.load_cert_chain(args.cert, args.key)
+    # Phones need their own certificate (comms/Laptop/make_phone_cert.py): iOS
+    # rejects the ESP certificate's 1960-2049 validity.
+    phone_tls = tls
+    if args.phone_cert:
+        phone_tls = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
+        phone_tls.minimum_version = ssl.TLSVersion.TLSv1_2
+        phone_tls.load_cert_chain(args.phone_cert, args.phone_key)
     gateways = GatewayServer(pipeline)
     tick = None
     try:
         async with await asyncio.start_server(gateways.handle, args.host, 8888, ssl=tls) as esp:
-            async with websockets.serve(hub.handle, args.host, 8889, ssl=tls,
-                                        max_size=MAX_MESSAGE_BYTES, close_timeout=2):
+            async with websockets.serve(hub.handle, args.host, 8889, ssl=phone_tls,
+                                        max_size=MAX_MESSAGE_BYTES, close_timeout=2,
+                                        ping_interval=PING_INTERVAL_SECONDS,
+                                        ping_timeout=PING_INTERVAL_SECONDS):
                 tick = asyncio.create_task(periodic_states(hub))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
                 previous_pairs = previous_windows = 0
@@ -297,11 +306,16 @@ if __name__ == '__main__':
     parser.add_argument('--cert', type=Path, default=here / 'server.crt')
     parser.add_argument('--key', type=Path, default=here / 'server.key')
     parser.add_argument('--host', default='0.0.0.0')
+    parser.add_argument('--phone-cert', type=Path,
+                        help='phone WSS server.crt from make_phone_cert.py (default: --cert)')
+    parser.add_argument('--phone-key', type=Path, help='matching phone WSS server.key')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
     parser.add_argument('--round-seconds', type=float, default=90)
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     args = parser.parse_args()
+    if bool(args.phone_cert) != bool(args.phone_key):
+        parser.error('--phone-cert and --phone-key go together')
     if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
         parser.error('invalid round duration/intensity')
     try:
