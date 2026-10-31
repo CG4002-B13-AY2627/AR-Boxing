@@ -6,7 +6,7 @@ Handshake check (default): P1/P2 join, an occupied slot is rejected, P1 reconnec
 
 Follow mode: act as one phone for the whole match, so a single Unity Editor
 can play against it. It presses Ready / I'm set / Resume whenever its slot
-isn't ready yet, and answers every PunchAttempt with TARGET_TRACKED.
+isn't ready yet (including Play again after a match), and answers every PunchAttempt with TARGET_TRACKED.
 
     python smoke_test_visualizer_wss.py --url ws://127.0.0.1:8889 --follow 2
 """
@@ -22,7 +22,9 @@ import websockets
 
 
 # The command that makes this phone "done" with each phase.
-PHASE_COMMAND = {"LOBBY": "READY", "CALIBRATING": "CALIBRATED", "PAUSED": "RESUME"}
+# MATCH_END: "Play again" (RESTART), so a match can follow the result.
+PHASE_COMMAND = {"LOBBY": "READY", "CALIBRATING": "CALIBRATED", "PAUSED": "RESUME",
+                 "MATCH_END": "RESTART"}
 RESEND_SECONDS = 2.0
 
 

@@ -32,7 +32,7 @@ BLOCK_DAMAGE_MULTIPLIER = 0.3
 ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
-COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME"))
+COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME", "RESTART"))
 # Health pickups (docs/protocol.md "Player-specific item pickups").
 HEALTH_ITEM_HEAL = 25.0
 HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
@@ -56,7 +56,7 @@ class Player:
     busy_until: float = 0.0
     guard_until: float = 0.0
     connected: bool = False
-    ready: bool = False   # "done with this phase": READY, CALIBRATED or RESUME
+    ready: bool = False   # "done with this phase": READY, CALIBRATED, RESUME or RESTART (Play again)
 
 
 class GameEngine:
@@ -65,9 +65,12 @@ class GameEngine:
     Match flow (CG4002-Viz docs/protocol.md, PlayerCommand rules):
     LOBBY -all READY-> CALIBRATING -all CALIBRATED-> COUNTDOWN -timer-> FIGHTING
     FIGHTING -PAUSE or disconnect-> PAUSED -all RESUME-> COUNTDOWN
-    FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END (final)
+    FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END
+    MATCH_END -every connected player RESTART ("Play again"), or nobody left-> LOBBY
+    PAUSED -any one player RESTART-> LOBBY
     "All" means at least required_players connected and every connected
-    player ready. Ready flags clear on every phase change.
+    player ready. Ready flags clear on every phase change. Returning to LOBBY
+    is reset_match(): a fresh match on the same stream (match_number + 1).
     """
 
     def __init__(self, clock=time.monotonic, round_seconds=ROUND_SECONDS,
@@ -81,7 +84,9 @@ class GameEngine:
         self.clock = clock
         self.players = {1: Player(), 2: Player()}
         self.phase = "LOBBY"
-        self.round_time = float(round_seconds)
+        self.round_seconds = float(round_seconds)
+        self.round_time = self.round_seconds
+        self.match_number = 1     # +1 on every reset_match()
         self.countdown_seconds = float(countdown_seconds)
         self.required_players = required_players
         self.last_tick = clock()
@@ -144,6 +149,36 @@ class GameEngine:
             return
         player.ready = False
         self.pause()
+        if self.phase == "MATCH_END":
+            self._reset_if_everyone_is_done()
+
+    def reset_match(self):
+        """Start a fresh match in LOBBY on the same stream.
+
+        Health, stamina, guards, the round timer, fight time and items reset;
+        who is connected stays. item_serial and the RNG carry on so item IDs
+        never repeat (phones remember retired IDs). fight_epoch moves on, so a
+        punch still pending from before can't land.
+        """
+        for player in self.players.values():
+            connected = player.connected
+            player.__init__()
+            player.connected = connected
+        self._set_phase("LOBBY")
+        self.round_time = self.round_seconds
+        self.round_end_at = None
+        self.countdown_until = None
+        self.fight_seconds = 0.0
+        self.items.clear()
+        self.fight_epoch += 1
+        self.transitions = []
+        self.last_tick = self.clock()
+        self.match_number += 1
+
+    def _reset_if_everyone_is_done(self):
+        connected = [p for p in self.players.values() if p.connected]
+        if all(p.ready for p in connected):     # also true when nobody is left
+            self.reset_match()
 
     def command(self, player_id, command):
         """Apply one PlayerCommand. Returns True when it changed anything."""
@@ -151,7 +186,18 @@ class GameEngine:
             return False
         self.advance()
         player = self.players[player_id]
-        if not player.connected or self.phase in ("ROUND_END", "MATCH_END"):
+        if not player.connected or self.phase == "ROUND_END":
+            return False
+        if command == "RESTART":
+            if self.phase == "PAUSED":            # either player, at once
+                self.reset_match()
+                return True
+            if self.phase != "MATCH_END" or player.ready:
+                return False                      # never mid-fight; "Play again" once
+            player.ready = True
+            self._reset_if_everyone_is_done()
+            return True
+        if self.phase == "MATCH_END":
             return False
         if command == "PAUSE":
             return self.phase == "FIGHTING" and self.pause()

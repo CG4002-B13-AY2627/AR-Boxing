@@ -289,7 +289,10 @@ class PhoneHub:
                 if request_id is not None:
                     self._resolve_pickup_locked(self.pickups[request_id], "OBSERVATION_TIMEOUT")
                 # Mid-fight (or countdown) this pauses; ready flags drop either way.
+                # At MATCH_END the last one out (or the last holdout) resets the match.
+                match = self.engine.match_number
                 self.engine.set_connected(player_id, False)
+                await self._after_reset_locked(match)
                 await self._broadcast_transitions_locked()
                 await self.broadcast(self.state())
 
@@ -317,12 +320,47 @@ class PhoneHub:
             return False   # a retry of something already applied
         recent.append(command["command_id"])
         async with self.broadcast_lock:
+            match = self.engine.match_number
             changed = self.engine.command(player_id, command["command"])
             print(f"[COMMAND] P{player_id} {command['command']} -> "
                   f"{self.engine.phase}{'' if changed else ' (no change)'}", flush=True)
+            await self._after_reset_locked(match)
             await self._broadcast_transitions_locked()
             await self.broadcast(self.state())
         return changed
+
+    async def operator_reset(self):
+        """Server-side new match (keyboard 'n'): back to LOBBY from any phase."""
+        async with self.broadcast_lock:
+            match = self.engine.match_number
+            self.engine.reset_match()
+            await self._after_reset_locked(match)
+            await self.broadcast(self.state())
+
+    async def _after_reset_locked(self, match_before):
+        """Tidy up after the engine started a new match (no-op otherwise).
+
+        A pending pickup check can't count any more, so it resolves as
+        MATCH_NOT_ACTIVE. Resolved attack/guard/pickup entries are dropped so
+        the ledgers stay bounded over many matches; still-pending attacks stay
+        and resolve as MISS (the fight epoch moved on). match_id, stream_id and
+        the seq counters are unchanged: phones just see a fresh LOBBY state.
+        """
+        if self.engine.match_number == match_before:
+            return
+        for player_id, request_id in tuple(self.pending_pickups.items()):
+            result = self._resolve_pickup_locked(self.pickups[request_id], "MATCH_NOT_ACTIVE")
+            socket = self.ready.get(player_id)
+            if socket is not None:
+                await send_bounded(socket, encode(result))
+        self.pickups.clear()
+        self.attacks = {key: record for key, record in self.attacks.items()
+                        if record.final_event is None}
+        self.rejected_attacks.clear()
+        self.guard_actions.clear()
+        if self.auto_start and len(self.ready) >= self.required_players:
+            self.engine.start()
+        print(f"[MATCH] match {self.engine.match_number} starts in {self.engine.phase}", flush=True)
 
     async def operator_pause(self):
         """Server-side pause (keyboard 'p'); the referee's stop."""

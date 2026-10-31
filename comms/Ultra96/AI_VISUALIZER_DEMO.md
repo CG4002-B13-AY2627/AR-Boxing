@@ -16,7 +16,13 @@ LOBBY --both Ready--> CALIBRATING --both I'm set--> COUNTDOWN (3 s) --> FIGHTING
 FIGHTING --Pause (look down, tap, or 'p') or a phone drops--> PAUSED
 PAUSED --both connected and Resume--> COUNTDOWN --> FIGHTING
 FIGHTING --KO or round timer--> ROUND_END (2 s) --> MATCH_END (with result)
+MATCH_END --every connected phone Play again (RESTART), or nobody left--> LOBBY
+PAUSED --any one phone Restart match (RESTART), or the 'n' key--> LOBBY
 ```
+
+Back to LOBBY is a **new match**: health, stamina, timer and items reset; the
+same match_id/stream_id and seq counters continue, item IDs never repeat, a
+pending punch can't land and a pending pickup check ends as MATCH_NOT_ACTIVE.
 
 "Both" means `--players` phones connected and every connected phone ready.
 Ready flags clear on every phase change. A phone that drops mid-fight pauses
@@ -127,6 +133,7 @@ don't use them.
 | `i` | Spawn a health pack for the selected player |
 | `k` | Pickup: the selected player's phone is asked for its reach |
 | `p` | Operator pause |
+| `n` | New match: back to LOBBY from any phase |
 | `s` | Print and broadcast the current state |
 | `r` | Retry the last action with the same ID (must not apply twice) |
 | `?`, `q` | Help, quit |

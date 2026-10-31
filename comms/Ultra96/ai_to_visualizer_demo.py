@@ -317,7 +317,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     selected = 1
     last = None
     print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-          "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
+          "g guard | x end guard | i spawn health | k pickup | p pause | n new match | s state | r retry last ID | ? help | q quit",
           flush=True)
     print_match_state(hub)
     while True:
@@ -327,7 +327,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             return
         if key == "?":
             print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-                  "g guard | x end guard | i spawn health | k pickup | p pause | s state | r retry last ID | ? help | q quit",
+                  "g guard | x end guard | i spawn health | k pickup | p pause | n new match | s state | r retry last ID | ? help | q quit",
                   flush=True)
             continue
         if key in ("1", "2"):
@@ -337,6 +337,10 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
         if key == "s":
             await hub.broadcast_state()
             print_match_state(hub)
+            continue
+        if key == "n":
+            await hub.operator_reset()
+            print(f"[MATCH] operator reset: match {hub.engine.match_number} in LOBBY", flush=True)
             continue
         if key == "p":
             paused = await hub.operator_pause()
