@@ -29,6 +29,24 @@ Ready flags clear on every phase change. A phone that drops mid-fight pauses
 the match; reconnecting never resumes by itself. `--auto-start` restores the old
 behaviour (joining starts the fight) for runs without phones' menus.
 
+### Tutorial mode (`--players 1` only)
+
+The phone's **Tutorial** button sends `START_TUTORIAL` from LOBBY:
+
+```
+LOBBY --START_TUTORIAL--> CALIBRATING --I'm set--> FIGHTING (no countdown)
+FIGHTING --Pause--> PAUSED --Resume--> FIGHTING
+any tutorial phase --EXIT_TUTORIAL, or the phone leaves--> LOBBY (new match)
+```
+
+`MatchState.mode` is `TUTORIAL` throughout. The other slot plays a punching
+bag: the round clock stops, health refills to 100 instead of a KO, and
+punches resolve normally (a punch with the marker out of view still MISSes).
+`PRACTICE_PUNCH` makes the bag punch back 1.5 s later (JAB, LEFT_HOOK,
+LEFT_UPPERCUT in turn): BLOCK if the player is guarding then, else HIT. A
+two-player server answers `supports_tutorial: false`. Rules:
+CG4002-Viz `docs/protocol.md`, "Tutorial mode".
+
 ## Run it
 
 From `C:\Dev\AR-Boxing\comms\Ultra96`.

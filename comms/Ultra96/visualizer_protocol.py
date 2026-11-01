@@ -303,6 +303,8 @@ class PhoneHub:
             "player_id": player_id, "server_timestamp": int(time.time() * 1000),
             "heartbeat_interval_ms": 5000,
             "supports_player_commands": True,
+            # The tutorial is single-player: only a --players 1 server offers it.
+            "supports_tutorial": self.required_players == 1,
         }
 
     async def player_command(self, player_id, client_id, raw):
@@ -665,6 +667,21 @@ class PhoneHub:
             record.result_future.set_result(event)
 
     async def _broadcast_transitions_locked(self):
+        # Tutorial bag punches resolved by the engine's clock (PRACTICE_PUNCH).
+        for result in self.engine.pop_practice_results():
+            self.event_seq += 1
+            await self.broadcast({
+                "type": "GameEvent", "protocol_version": PROTOCOL_VERSION,
+                "match_id": self.match_id, "stream_id": self.stream_id,
+                "seq": self.event_seq, "timestamp": int(time.time() * 1000),
+                "event": "PUNCH", "source_player": result["source_player"],
+                "target_player": result["target_player"], "punch": result["punch"],
+                "confidence": 1.0, "intensity": 1.0,
+                "outcome": result["outcome"], "damage": result["damage"],
+                "attack_id": result["attack_id"],
+            })
+            print(f"[TUTORIAL] bag {result['punch']} -> P{result['target_player']} "
+                  f"{result['outcome']} {result['damage']}", flush=True)
         for phase in self.engine.pop_transitions():
             self.event_seq += 1
             await self.broadcast({

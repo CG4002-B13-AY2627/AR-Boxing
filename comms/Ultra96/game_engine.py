@@ -32,7 +32,13 @@ BLOCK_DAMAGE_MULTIPLIER = 0.3
 ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
-COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME", "RESTART"))
+TUTORIAL_COMMANDS = frozenset(("START_TUTORIAL", "EXIT_TUTORIAL", "PRACTICE_PUNCH"))
+COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME",
+                      "RESTART")) | TUTORIAL_COMMANDS
+# Tutorial (CG4002-Viz docs/protocol.md "Tutorial mode"): the bag's punch lands
+# this long after PRACTICE_PUNCH, and the bag cycles through these punches.
+PRACTICE_WINDUP_SECONDS = 1.5
+PRACTICE_PUNCHES = ("JAB", "LEFT_HOOK", "LEFT_UPPERCUT")
 # Health pickups (docs/protocol.md "Player-specific item pickups").
 HEALTH_ITEM_HEAL = 25.0
 HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
@@ -68,6 +74,12 @@ class GameEngine:
     FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END
     MATCH_END -every connected player RESTART ("Play again"), or nobody left-> LOBBY
     PAUSED -any one player RESTART-> LOBBY
+    Tutorial (single-player server only), mode TUTORIAL throughout:
+    LOBBY -START_TUTORIAL-> CALIBRATING -CALIBRATED-> FIGHTING (no countdown)
+    FIGHTING -PAUSE or disconnect-> PAUSED -RESUME-> FIGHTING
+    any tutorial phase -EXIT_TUTORIAL or nobody left-> LOBBY, mode MATCH
+    The round clock stops, nobody is knocked out (health refills to 100) and
+    PRACTICE_PUNCH makes the bag (the other slot) punch back after a windup.
     "All" means at least required_players connected and every connected
     player ready. Ready flags clear on every phase change. Returning to LOBBY
     is reset_match(): a fresh match on the same stream (match_number + 1).
@@ -98,6 +110,11 @@ class GameEngine:
         self.item_serial = 0
         self.rng = random.Random(seed)
         self.transitions = []
+        self.mode = "MATCH"            # or "TUTORIAL"
+        self.tutorial_player = None    # who started the tutorial; the bag is 3 - this
+        self.practice_due = None       # clock time the pending bag punch lands
+        self.practice_serial = 0
+        self.practice_results = []     # resolved bag punches for the hub to emit
 
     def _set_phase(self, phase):
         self.phase = phase
@@ -118,6 +135,10 @@ class GameEngine:
         self._set_phase("FIGHTING")
         return True
 
+    @property
+    def tutorial(self):
+        return self.mode == "TUTORIAL"
+
     def pause(self):
         """Operator pause, PAUSE command or a disconnect (FIGHTING or COUNTDOWN)."""
         if self.phase not in ("FIGHTING", "COUNTDOWN"):
@@ -126,6 +147,7 @@ class GameEngine:
         if self.phase not in ("FIGHTING", "COUNTDOWN"):
             return False
         self._set_phase("PAUSED")
+        self.practice_due = None       # a bag punch never lands across a pause
         for player in self.players.values():
             player.guard_until = 0.0
             player.busy_until = 0.0
@@ -151,6 +173,8 @@ class GameEngine:
         self.pause()
         if self.phase == "MATCH_END":
             self._reset_if_everyone_is_done()
+        elif self.tutorial and not any(p.connected for p in self.players.values()):
+            self.reset_match()         # nobody left to teach
 
     def reset_match(self):
         """Start a fresh match in LOBBY on the same stream.
@@ -174,6 +198,10 @@ class GameEngine:
         self.transitions = []
         self.last_tick = self.clock()
         self.match_number += 1
+        self.mode = "MATCH"
+        self.tutorial_player = None
+        self.practice_due = None
+        self.practice_results = []
 
     def _reset_if_everyone_is_done(self):
         connected = [p for p in self.players.values() if p.connected]
@@ -188,6 +216,8 @@ class GameEngine:
         player = self.players[player_id]
         if not player.connected or self.phase == "ROUND_END":
             return False
+        if command in TUTORIAL_COMMANDS or self.tutorial:
+            return self._tutorial_command(player_id, command)
         if command == "RESTART":
             if self.phase == "PAUSED":            # either player, at once
                 self.reset_match()
@@ -214,6 +244,71 @@ class GameEngine:
         player.ready = wanted
         self._progress()
         return True
+
+    def _tutorial_command(self, player_id, command):
+        """START_TUTORIAL in LOBBY, or any command while the tutorial runs."""
+        if command == "START_TUTORIAL":
+            if self.tutorial or self.phase != "LOBBY" or self.required_players != 1:
+                return False
+            for player in self.players.values():
+                connected = player.connected
+                player.__init__()
+                player.connected = connected
+            self.mode = "TUTORIAL"
+            self.tutorial_player = player_id
+            self.round_time = self.round_seconds
+            self.items.clear()
+            self._set_phase("CALIBRATING")
+            return True
+        if not self.tutorial or player_id != self.tutorial_player:
+            return False
+        if command == "EXIT_TUTORIAL":
+            self.reset_match()
+            return True
+        if command == "PRACTICE_PUNCH":
+            if self.phase != "FIGHTING" or self.practice_due is not None:
+                return False
+            self.practice_due = self.clock() + PRACTICE_WINDUP_SECONDS
+            return True
+        if command == "PAUSE":
+            return self.phase == "FIGHTING" and self.pause()
+        if (self.phase, command) in (("CALIBRATING", "CALIBRATED"), ("PAUSED", "RESUME")):
+            self.last_tick = self.clock()
+            self._set_phase("FIGHTING")    # no countdown in the tutorial
+            return True
+        return False                       # READY, UNREADY, RESTART: not here
+
+    def _apply_damage(self, target, raw_damage):
+        """Lower health; returns the damage dealt. A tutorial never knocks out."""
+        damage = round(min(target.health, raw_damage), 2)
+        target.health = round(max(0.0, target.health - damage), 2)
+        if target.health == 0.0:
+            if self.tutorial:
+                target.health = 100.0
+            else:
+                self._end_round(self.clock())
+        return damage
+
+    def _resolve_practice(self, now):
+        """The bag's punch lands: BLOCK if the player guards now, else HIT."""
+        self.practice_due = None
+        self.practice_serial += 1
+        punch = PRACTICE_PUNCHES[(self.practice_serial - 1) % len(PRACTICE_PUNCHES)]
+        target_id = self.tutorial_player
+        target = self.players[target_id]
+        blocked = target.guard_until > now
+        factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
+        damage = self._apply_damage(target, BASE_DAMAGE[punch] * factor)
+        self.practice_results.append({
+            "attack_id": f"practice-m{self.match_number}-{self.practice_serial:04d}",
+            "source_player": 3 - target_id, "target_player": target_id,
+            "punch": punch, "outcome": "BLOCK" if blocked else "HIT", "damage": damage,
+        })
+
+    def pop_practice_results(self):
+        results = self.practice_results
+        self.practice_results = []
+        return results
 
     def _progress(self):
         connected = [p for p in self.players.values() if p.connected]
@@ -259,9 +354,13 @@ class GameEngine:
             for owner, item in list(self.items.items()):
                 if item.expires_at <= self.fight_seconds:
                     del self.items[owner]
-            self.round_time = max(0.0, self.round_time - elapsed)
-            if self.round_time == 0.0:
-                self._end_round(now)
+            if self.tutorial:
+                if self.practice_due is not None and now >= self.practice_due:
+                    self._resolve_practice(now)
+            else:
+                self.round_time = max(0.0, self.round_time - elapsed)
+                if self.round_time == 0.0:
+                    self._end_round(now)
         if self.phase == "ROUND_END" and now >= self.round_end_at:
             self._set_phase("MATCH_END")
             self.transitions.append("MATCH_END")
@@ -384,10 +483,7 @@ class GameEngine:
             return "MISS", 0.0
         blocked = target.guard_until > self.clock()
         factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
-        damage = round(min(target.health, BASE_DAMAGE[punch] * intensity * factor), 2)
-        target.health = round(max(0.0, target.health - damage), 2)
-        if target.health == 0.0:
-            self._end_round(self.clock())
+        damage = self._apply_damage(target, BASE_DAMAGE[punch] * intensity * factor)
         return ("BLOCK" if blocked else "HIT"), damage
 
     def snapshot(self):
@@ -409,4 +505,5 @@ class GameEngine:
             "active_items": self._active_items(),
             "phase_remaining_ms": self.phase_remaining_ms(),
             "match_result": self.match_result(),
+            "mode": self.mode,
         }
