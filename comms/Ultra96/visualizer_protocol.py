@@ -10,7 +10,7 @@ from collections import deque
 from dataclasses import dataclass
 
 import websockets
-from game_engine import COMMANDS, GameEngine
+from game_engine import ATTACK_BOOST_SECONDS, COMMANDS, GameEngine
 
 
 PROTOCOL_VERSION = 2
@@ -372,15 +372,21 @@ class PhoneHub:
             await self.broadcast(self.state())
         return paused
 
-    # ----- Health pickups (docs/protocol.md "Player-specific item pickups") -----
+    # ----- Pickups (docs/protocol.md "Player-specific item pickups") -----
 
-    async def spawn_health(self, player_id):
+    async def spawn_item(self, player_id, item_type="HEALTH"):
         """Explicit spawn trigger; MatchState.active_items carries the item."""
         async with self.broadcast_lock:
-            item = self.engine.spawn_health(player_id)
+            item = self.engine.spawn_item(player_id, item_type)
             if item is not None:
                 await self.broadcast(self.state())
         return item
+
+    async def spawn_health(self, player_id):
+        return await self.spawn_item(player_id, "HEALTH")
+
+    async def spawn_attack(self, player_id):
+        return await self.spawn_item(player_id, "ATTACK_MULTIPLIER")
 
     async def request_pickup(self, player_id, action_id):
         """A pickup action (wearable or keyboard) with a stable action ID.
@@ -467,15 +473,17 @@ class PhoneHub:
                     await send_bounded(socket, encode(self.state()))
                 return request.result
             if time.monotonic() >= request.deadline:
-                reason, gained = "OBSERVATION_TIMEOUT", 0.0
+                reason, item_type, magnitude = "OBSERVATION_TIMEOUT", "HEALTH", 0.0
             else:
-                reason, gained = self.engine.collect_health(
+                reason, item_type, magnitude = self.engine.collect_item(
                     player_id, observation["item_id"], observation["observation"],
                     observation.get("observed_distance_m", 0.0))
             request.observation = observation
             result = self._resolve_pickup_locked(request, reason)
+            attack = item_type == "ATTACK_MULTIPLIER"
             print(f"[PICKUP] P{player_id} {reason}"
-                  + (f" +{gained:g} HP" if reason == "ACCEPTED" else ""), flush=True)
+                  + ((f" attack x{magnitude:g} for {ATTACK_BOOST_SECONDS:g} s" if attack
+                      else f" +{magnitude:g} HP") if reason == "ACCEPTED" else ""), flush=True)
             if socket is not None:
                 await send_bounded(socket, encode(result))
             if reason == "ACCEPTED":
@@ -488,9 +496,9 @@ class PhoneHub:
                     "target_player": player_id, "punch": "", "confidence": 1.0,
                     "intensity": 0.0, "outcome": "NONE", "damage": 0.0,
                     "request_id": observation["request_id"],
-                    "item_id": observation["item_id"], "item_type": "HEALTH",
-                    "hand": observation["hand"], "magnitude": gained,
-                    "effect_duration_ms": 0,
+                    "item_id": observation["item_id"], "item_type": item_type,
+                    "hand": observation["hand"], "magnitude": magnitude,
+                    "effect_duration_ms": int(ATTACK_BOOST_SECONDS * 1000) if attack else 0,
                 })
                 await self.broadcast(self.state())
             return result

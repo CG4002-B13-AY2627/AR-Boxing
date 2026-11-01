@@ -300,14 +300,22 @@ class KeyboardInput:
             termios.tcsetattr(fd, termios.TCSADRAIN, original)
 
 
+KEYS_HELP = ("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
+             "g guard | x end guard | i spawn health | o spawn attack boost | k pickup | "
+             "p pause | n new match | s state | r retry last ID | ? help | q quit")
+
+
 def print_match_state(hub):
     state = hub.engine.snapshot()
     players = []
     for player in (1, 2):
         value = state[f"player_{player}"]
+        boost = (f" ATK=x{value['attack_multiplier']:g} "
+                 f"{value['attack_multiplier_remaining_ms'] / 1000:.0f}s"
+                 if value["attack_multiplier"] > 1 else "")
         players.append(f"P{player} HP={value['health']:g} "
                        f"STA={value['stamina']:g} "
-                       f"GUARD={'ON' if value['is_blocking'] else 'off'}")
+                       f"GUARD={'ON' if value['is_blocking'] else 'off'}{boost}")
     print(f"[STATE] seq={hub.state_seq} {state['state']} "
           f"time={state['round_time']:g}s | {' | '.join(players)}", flush=True)
 
@@ -316,9 +324,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
     """Run console commands; a queue makes the same path testable without a TTY."""
     selected = 1
     last = None
-    print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-          "g guard | x end guard | i spawn health | k pickup | p pause | n new match | s state | r retry last ID | ? help | q quit",
-          flush=True)
+    print(KEYS_HELP, flush=True)
     print_match_state(hub)
     while True:
         key = await commands.get()
@@ -326,9 +332,7 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             print("[STOP] keyboard demo closed", flush=True)
             return
         if key == "?":
-            print("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-                  "g guard | x end guard | i spawn health | k pickup | p pause | n new match | s state | r retry last ID | ? help | q quit",
-                  flush=True)
+            print(KEYS_HELP, flush=True)
             continue
         if key in ("1", "2"):
             selected = int(key)
@@ -363,11 +367,11 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             kind, player, value = "guard", selected, key == "g"
             action_id = attack_ids.next(player - 1)
             last = kind, player, value, action_id
-        elif key == "i":
-            item = await hub.spawn_health(selected)
-            print(f"[ITEM] P{selected} health pack {item.item_id} at "
+        elif key in ("i", "o"):
+            item = await hub.spawn_item(selected, "HEALTH" if key == "i" else "ATTACK_MULTIPLIER")
+            print(f"[ITEM] P{selected} {describe_item(item)} at "
                   f"{item.bearing_degrees:+.0f} deg" if item else
-                  f"[ITEM] P{selected}: only while FIGHTING, one pack at a time", flush=True)
+                  f"[ITEM] P{selected}: only while FIGHTING, one item at a time", flush=True)
             continue
         elif key == "k":
             kind, player, value = "pickup", selected, None
@@ -420,16 +424,31 @@ async def run_keyboard(args, hub, attack_ids):
         keyboard.close()
 
 
-async def spawn_health_every(hub, seconds):
-    """Optional --spawn-seconds: give each connected phone a health pack while
-    FIGHTING (spawn_health ignores a player who still has one)."""
+def describe_item(item):
+    if item.item_type == "ATTACK_MULTIPLIER":
+        return f"attack boost x{item.magnitude:g} {item.item_id}"
+    return f"health pack {item.item_id}"
+
+
+async def spawn_items_every(hub, seconds):
+    """Optional --spawn-seconds: give each connected phone an item while FIGHTING.
+
+    Health when the player is below 50 HP, otherwise health and attack boost
+    alternate. A player who still has an item is skipped (one at a time).
+    Shared by the live ESP servers.
+    """
     while True:
         await asyncio.sleep(seconds)
         if hub.engine.phase == "FIGHTING":
             for player in tuple(hub.ready):
-                item = await hub.spawn_health(player)
+                if player in hub.engine.items:
+                    continue
+                item = await hub.spawn_item(player, hub.engine.next_spawn_type(player))
                 if item is not None:
-                    print(f"[ITEM] P{player} health pack {item.item_id}", flush=True)
+                    print(f"[ITEM] P{player} {describe_item(item)}", flush=True)
+
+
+spawn_health_every = spawn_items_every   # older name
 
 
 async def main(args):
@@ -473,7 +492,7 @@ async def main(args):
                                 ping_interval=PING_INTERVAL_SECONDS,
                                 ping_timeout=PING_INTERVAL_SECONDS):
         state_task = asyncio.create_task(periodic_states(hub))
-        spawn_task = (asyncio.create_task(spawn_health_every(hub, args.spawn_seconds))
+        spawn_task = (asyncio.create_task(spawn_items_every(hub, args.spawn_seconds))
                       if args.spawn_seconds > 0 else None)
         try:
             print(f"[{'WS' if ctx is None else 'WSS'}] host={args.host} port={args.port} "
@@ -532,8 +551,9 @@ if __name__ == "__main__":
     parser.add_argument("--countdown-seconds", type=float, default=3.0,
                         help="COUNTDOWN length before FIGHTING (default: 3)")
     parser.add_argument("--spawn-seconds", type=float, default=0.0,
-                        help="spawn a health pack for each phone this often while "
-                             "FIGHTING (default 0 = only with the 'i' key)")
+                        help="spawn an item for each phone this often while FIGHTING: "
+                             "health below 50 HP, else health and attack boost alternate "
+                             "(default 0 = only with the 'i'/'o' keys)")
     parser.add_argument("--insecure-ws", action="store_true",
                         help="plain ws:// for local Unity Editor tests; only with --host 127.0.0.1")
     parser.add_argument("--samples", type=int, default=2000,

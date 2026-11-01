@@ -39,20 +39,42 @@ COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME",
 # this long after PRACTICE_PUNCH, and the bag cycles through these punches.
 PRACTICE_WINDUP_SECONDS = 1.5
 PRACTICE_PUNCHES = ("JAB", "LEFT_HOOK", "LEFT_UPPERCUT")
-# Health pickups (docs/protocol.md "Player-specific item pickups").
+# Pickups (CG4002-Viz docs/protocol.md "Player-specific item pickups"). One item
+# per player at a time, of either type; lifetimes count fight time only.
 HEALTH_ITEM_HEAL = 25.0
 HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
 HEALTH_ITEM_DISTANCE_M = 1.0
 HEALTH_ITEM_MAX_BEARING = 65.0
 PICKUP_RADIUS_M = 0.5
+# Attack boost (CG4002-Viz docs/attack-boost-pickup-plan.md): collecting it
+# multiplies the owner's punch damage (before the block factor) for 30 s of
+# fight time. Collecting another while boosted refreshes to 30 s; no stacking.
+ATTACK_ITEM_MULTIPLIER = 1.5
+ATTACK_ITEM_SECONDS = 30.0     # how long the uncollected item stays
+ATTACK_BOOST_SECONDS = 30.0    # how long the boost lasts once collected
+# Timed spawns prefer health below this, otherwise alternate types per player.
+SPAWN_PREFER_HEALTH_BELOW = 50.0
+ITEM_TYPES = ("HEALTH", "ATTACK_MULTIPLIER")
 
 
 @dataclass
-class HealthItem:
+class PickupItem:
     item_id: str
     owner: int
     bearing_degrees: float
     expires_at: float          # in fight seconds, so a pause freezes it
+    item_type: str = "HEALTH"
+
+    @property
+    def magnitude(self):
+        return ATTACK_ITEM_MULTIPLIER if self.item_type == "ATTACK_MULTIPLIER" else HEALTH_ITEM_HEAL
+
+    @property
+    def effect_duration_ms(self):
+        return int(ATTACK_BOOST_SECONDS * 1000) if self.item_type == "ATTACK_MULTIPLIER" else 0
+
+
+HealthItem = PickupItem        # older name, kept for callers and tests
 
 
 @dataclass
@@ -63,6 +85,8 @@ class Player:
     guard_until: float = 0.0
     connected: bool = False
     ready: bool = False   # "done with this phase": READY, CALIBRATED, RESUME or RESTART (Play again)
+    boost_until: float = 0.0   # fight seconds; attack boost active while above fight_seconds
+    last_spawned: str = ""     # item type last spawned for this player (timed spawns alternate)
 
 
 class GameEngine:
@@ -106,7 +130,7 @@ class GameEngine:
         self.countdown_until = None
         self.fight_epoch = 0      # +1 each time FIGHTING (re)starts
         self.fight_seconds = 0.0  # time spent FIGHTING; item lifetimes use it
-        self.items = {}           # owner player -> HealthItem (one each at most)
+        self.items = {}           # owner player -> PickupItem (one each at most)
         self.item_serial = 0
         self.rng = random.Random(seed)
         self.transitions = []
@@ -122,6 +146,8 @@ class GameEngine:
             player.ready = False   # ready means "for this phase" only
         if phase in ("ROUND_END", "MATCH_END"):
             self.items.clear()     # nothing to collect once the round is over
+            for player in self.players.values():
+                player.boost_until = 0.0   # boosts end with the round
         if phase == "FIGHTING":
             self.fight_epoch += 1
         if phase == "COUNTDOWN":
@@ -354,6 +380,9 @@ class GameEngine:
             for owner, item in list(self.items.items()):
                 if item.expires_at <= self.fight_seconds:
                     del self.items[owner]
+            for player in self.players.values():
+                if player.boost_until <= self.fight_seconds:
+                    player.boost_until = 0.0
             if self.tutorial:
                 if self.practice_due is not None and now >= self.practice_due:
                     self._resolve_practice(now)
@@ -365,61 +394,101 @@ class GameEngine:
             self._set_phase("MATCH_END")
             self.transitions.append("MATCH_END")
 
-    def spawn_health(self, player_id):
-        """Place one health pack for this player (FIGHTING only, one at a time).
+    def spawn_item(self, player_id, item_type="HEALTH"):
+        """Place one pickup for this player (FIGHTING only, one item at a time).
 
         Spawning is an explicit trigger (operator key or --spawn-seconds); the
         phone places it 1 m away at the given bearing on its own floor.
         """
         if player_id not in self.players:
             raise ValueError("invalid player")
+        if item_type not in ITEM_TYPES:
+            raise ValueError("invalid item type")
         self.advance()
         if self.phase != "FIGHTING" or player_id in self.items:
             return None
         self.item_serial += 1
-        item = HealthItem(
-            item_id=f"health-p{player_id}-{self.item_serial:04d}",
+        attack = item_type == "ATTACK_MULTIPLIER"
+        item = PickupItem(
+            item_id=f"{'attack' if attack else 'health'}-p{player_id}-{self.item_serial:04d}",
             owner=player_id,
             bearing_degrees=round(self.rng.uniform(-HEALTH_ITEM_MAX_BEARING,
                                                    HEALTH_ITEM_MAX_BEARING), 1),
-            expires_at=self.fight_seconds + HEALTH_ITEM_SECONDS,
+            expires_at=self.fight_seconds + (ATTACK_ITEM_SECONDS if attack else HEALTH_ITEM_SECONDS),
+            item_type=item_type,
         )
         self.items[player_id] = item
+        self.players[player_id].last_spawned = item_type
         return item
+
+    def spawn_health(self, player_id):
+        return self.spawn_item(player_id, "HEALTH")
+
+    def spawn_attack(self, player_id):
+        return self.spawn_item(player_id, "ATTACK_MULTIPLIER")
+
+    def next_spawn_type(self, player_id):
+        """Timed spawns: health when below 50 HP, otherwise alternate types."""
+        player = self.players[player_id]
+        if player.health < SPAWN_PREFER_HEALTH_BELOW:
+            return "HEALTH"
+        return "ATTACK_MULTIPLIER" if player.last_spawned == "HEALTH" else "HEALTH"
 
     def pickup_target(self, player_id):
         """The item a pickup action would try to collect, or None."""
         self.advance()
         return self.items.get(player_id) if self.phase == "FIGHTING" else None
 
-    def collect_health(self, player_id, item_id, observation, distance_m):
-        """Judge one phone observation. Returns (reason, health gained).
+    def collect_item(self, player_id, item_id, observation, distance_m):
+        """Judge one phone observation. Returns (reason, item_type, magnitude).
 
         Only FIGHTING, the player's own live item, AVAILABLE and <= 0.5 m
-        succeed; success removes the item and heals (capped at 100), even at
-        full health. The phone's distance is trusted evidence, not verified.
+        succeed; success removes the item and applies it. HEALTH heals (capped
+        at 100, even at full health; magnitude is the HP actually gained).
+        ATTACK_MULTIPLIER (re)starts a 30 s boost (magnitude is the multiplier).
+        The phone's distance is trusted evidence, not verified.
         """
         self.advance()
         item = self.items.get(player_id)
+        item_type = item.item_type if item is not None else "HEALTH"
         if self.phase != "FIGHTING":
-            return "MATCH_NOT_ACTIVE", 0.0
+            return "MATCH_NOT_ACTIVE", item_type, 0.0
         if item is None or item.item_id != item_id:
-            return "ITEM_NOT_FOUND", 0.0
+            return "ITEM_NOT_FOUND", item_type, 0.0
         if observation != "AVAILABLE":
-            return observation, 0.0      # ITEM_UNAVAILABLE / TRACKING_UNAVAILABLE
+            return observation, item_type, 0.0   # ITEM_UNAVAILABLE / TRACKING_UNAVAILABLE
         if distance_m > PICKUP_RADIUS_M:
-            return "OUT_OF_RANGE", 0.0
+            return "OUT_OF_RANGE", item_type, 0.0
         del self.items[player_id]
         player = self.players[player_id]
+        if item.item_type == "ATTACK_MULTIPLIER":
+            player.boost_until = self.fight_seconds + ATTACK_BOOST_SECONDS
+            return "ACCEPTED", item.item_type, ATTACK_ITEM_MULTIPLIER
         before = player.health
         player.health = round(min(100.0, before + HEALTH_ITEM_HEAL), 2)
-        return "ACCEPTED", round(player.health - before, 2)
+        return "ACCEPTED", item.item_type, round(player.health - before, 2)
+
+    def collect_health(self, player_id, item_id, observation, distance_m):
+        """Older two-value form of collect_item: (reason, health gained)."""
+        reason, item_type, magnitude = self.collect_item(player_id, item_id, observation, distance_m)
+        return reason, (magnitude if item_type == "HEALTH" else 0.0)
+
+    def attack_multiplier(self, player_id):
+        """Current damage multiplier for this player's punches (1.0 when not boosted)."""
+        player = self.players[player_id]
+        return ATTACK_ITEM_MULTIPLIER if player.boost_until > self.fight_seconds else 1.0
+
+    def boost_remaining_ms(self, player_id):
+        player = self.players[player_id]
+        if player.boost_until <= self.fight_seconds:
+            return 0
+        return max(1, min(120000, math.ceil((player.boost_until - self.fight_seconds) * 1000)))
 
     def _active_items(self):
         return [{
-            "id": item.item_id, "item_type": "HEALTH", "owner_player": item.owner,
+            "id": item.item_id, "item_type": item.item_type, "owner_player": item.owner,
             "distance_m": HEALTH_ITEM_DISTANCE_M, "bearing_degrees": item.bearing_degrees,
-            "magnitude": HEALTH_ITEM_HEAL, "effect_duration_ms": 0,
+            "magnitude": item.magnitude, "effect_duration_ms": item.effect_duration_ms,
             "remaining_ms": max(0, min(120000, math.ceil(
                 (item.expires_at - self.fight_seconds) * 1000))),
         } for item in self.items.values()]
@@ -483,23 +552,26 @@ class GameEngine:
             return "MISS", 0.0
         blocked = target.guard_until > self.clock()
         factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
-        damage = self._apply_damage(target, BASE_DAMAGE[punch] * intensity * factor)
+        # protocol.md: boosted = base * attack_multiplier, then the block factor.
+        boosted = BASE_DAMAGE[punch] * intensity * self.attack_multiplier(source_player)
+        damage = self._apply_damage(target, boosted * factor)
         return ("BLOCK" if blocked else "HIT"), damage
 
     def snapshot(self):
         now = self.clock()
-        def player_state(player):
+        def player_state(player_id):
+            player = self.players[player_id]
             return {
                 "health": player.health, "stamina": player.stamina,
                 "is_blocking": self.phase == "FIGHTING" and player.guard_until > now,
-                "attack_multiplier": 1.0,
-                "attack_multiplier_remaining_ms": 0,
+                "attack_multiplier": self.attack_multiplier(player_id),
+                "attack_multiplier_remaining_ms": self.boost_remaining_ms(player_id),
                 "connected": player.connected,
                 "ready": player.ready,
             }
         return {
-            "player_1": player_state(self.players[1]),
-            "player_2": player_state(self.players[2]),
+            "player_1": player_state(1),
+            "player_2": player_state(2),
             "round_time": round(self.round_time, 2),
             "state": self.phase,
             "active_items": self._active_items(),
