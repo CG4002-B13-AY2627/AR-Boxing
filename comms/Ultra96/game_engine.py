@@ -32,13 +32,16 @@ BLOCK_DAMAGE_MULTIPLIER = 0.3
 ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
-TUTORIAL_COMMANDS = frozenset(("START_TUTORIAL", "EXIT_TUTORIAL", "PRACTICE_PUNCH"))
+TUTORIAL_COMMANDS = frozenset(("START_TUTORIAL", "EXIT_TUTORIAL", "PRACTICE_PUNCH",
+                               "PRACTICE_ITEM"))
 COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME",
                       "RESTART")) | TUTORIAL_COMMANDS
 # Tutorial (CG4002-Viz docs/protocol.md "Tutorial mode"): the bag's punch lands
 # this long after PRACTICE_PUNCH, and the bag cycles through these punches.
 PRACTICE_WINDUP_SECONDS = 1.5
 PRACTICE_PUNCHES = ("JAB", "LEFT_HOOK", "LEFT_UPPERCUT")
+# PRACTICE_ITEM spawns an attack boost to one side, clear of the bag straight ahead.
+PRACTICE_ITEM_MIN_BEARING = 35.0
 # Pickups (CG4002-Viz docs/protocol.md "Player-specific item pickups"). One item
 # per player at a time, of either type; lifetimes count fight time only.
 HEALTH_ITEM_HEAL = 25.0
@@ -103,7 +106,8 @@ class GameEngine:
     FIGHTING -PAUSE or disconnect-> PAUSED -RESUME-> FIGHTING
     any tutorial phase -EXIT_TUTORIAL or nobody left-> LOBBY, mode MATCH
     The round clock stops, nobody is knocked out (health refills to 100) and
-    PRACTICE_PUNCH makes the bag (the other slot) punch back after a windup.
+    PRACTICE_PUNCH makes the bag (the other slot) punch back after a windup;
+    PRACTICE_ITEM spawns an attack boost for the player to collect.
     "All" means at least required_players connected and every connected
     player ready. Ready flags clear on every phase change. Returning to LOBBY
     is reset_match(): a fresh match on the same stream (match_number + 1).
@@ -296,6 +300,11 @@ class GameEngine:
                 return False
             self.practice_due = self.clock() + PRACTICE_WINDUP_SECONDS
             return True
+        if command == "PRACTICE_ITEM":
+            # The usual one-item rule applies: ignored while one is on the floor.
+            side = -1.0 if self.rng.random() < 0.5 else 1.0
+            bearing = side * self.rng.uniform(PRACTICE_ITEM_MIN_BEARING, HEALTH_ITEM_MAX_BEARING)
+            return self.spawn_item(player_id, "ATTACK_MULTIPLIER", bearing) is not None
         if command == "PAUSE":
             return self.phase == "FIGHTING" and self.pause()
         if (self.phase, command) in (("CALIBRATING", "CALIBRATED"), ("PAUSED", "RESUME")):
@@ -394,7 +403,7 @@ class GameEngine:
             self._set_phase("MATCH_END")
             self.transitions.append("MATCH_END")
 
-    def spawn_item(self, player_id, item_type="HEALTH"):
+    def spawn_item(self, player_id, item_type="HEALTH", bearing_degrees=None):
         """Place one pickup for this player (FIGHTING only, one item at a time).
 
         Spawning is an explicit trigger (operator key or --spawn-seconds); the
@@ -412,7 +421,8 @@ class GameEngine:
         item = PickupItem(
             item_id=f"{'attack' if attack else 'health'}-p{player_id}-{self.item_serial:04d}",
             owner=player_id,
-            bearing_degrees=round(self.rng.uniform(-HEALTH_ITEM_MAX_BEARING,
+            bearing_degrees=round(bearing_degrees if bearing_degrees is not None else
+                                  self.rng.uniform(-HEALTH_ITEM_MAX_BEARING,
                                                    HEALTH_ITEM_MAX_BEARING), 1),
             expires_at=self.fight_seconds + (ATTACK_ITEM_SECONDS if attack else HEALTH_ITEM_SECONDS),
             item_type=item_type,

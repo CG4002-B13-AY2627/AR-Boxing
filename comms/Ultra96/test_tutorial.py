@@ -6,7 +6,7 @@ no round clock, no KO, and PRACTICE_PUNCH makes the bag punch back.
 
 import unittest
 
-from game_engine import PRACTICE_WINDUP_SECONDS, GameEngine
+from game_engine import PRACTICE_ITEM_MIN_BEARING, PRACTICE_WINDUP_SECONDS, GameEngine
 from test_match_flow import FakeClock, contract_validators, joined, to_fighting
 from visualizer_protocol import PhoneHub
 
@@ -136,6 +136,34 @@ class TutorialEngineTests(unittest.TestCase):
         engine.clock.advance(90)
         engine.advance()
         self.assertEqual(engine.phase, "ROUND_END")
+
+
+class TutorialItemTests(unittest.TestCase):
+    def test_practice_item_spawns_an_attack_boost_beside_the_bag(self):
+        engine = tutorial_fighting()
+        self.assertTrue(engine.command(1, "PRACTICE_ITEM"))
+        [item] = engine.snapshot()["active_items"]
+        self.assertEqual((item["item_type"], item["owner_player"]), ("ATTACK_MULTIPLIER", 1))
+        self.assertGreaterEqual(abs(item["bearing_degrees"]), PRACTICE_ITEM_MIN_BEARING)
+        self.assertLessEqual(abs(item["bearing_degrees"]), 65.0)
+        self.assertFalse(engine.command(1, "PRACTICE_ITEM"), "one item at a time")
+
+    def test_collecting_it_boosts_damage_on_the_bag(self):
+        engine = tutorial_fighting()
+        engine.command(1, "PRACTICE_ITEM")
+        item_id = engine.snapshot()["active_items"][0]["id"]
+        self.assertEqual(engine.collect_item(1, item_id, "AVAILABLE", 0.3)[0], "ACCEPTED")
+        self.assertEqual(engine.snapshot()["player_1"]["attack_multiplier"], 1.5)
+        self.assertEqual(engine.resolve_punch(1, "JAB", 1.0, tracked=True), ("HIT", 7.5))
+        self.assertTrue(engine.command(1, "PRACTICE_ITEM"), "the next one can spawn")
+
+    def test_only_while_the_tutorial_fights(self):
+        engine = joined(players=(1,), required=1)
+        engine.command(1, "START_TUTORIAL")
+        self.assertFalse(engine.command(1, "PRACTICE_ITEM"), "not while calibrating")
+        match = to_fighting(joined(players=(1,), required=1), players=(1,))
+        self.assertFalse(match.command(1, "PRACTICE_ITEM"), "never in a match")
+        self.assertEqual(match.snapshot()["active_items"], [])
 
 
 class TutorialHubTests(unittest.IsolatedAsyncioTestCase):
