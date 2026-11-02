@@ -86,7 +86,8 @@ class GameEngine:
     """
 
     def __init__(self, clock=time.monotonic, round_seconds=ROUND_SECONDS,
-                 countdown_seconds=COUNTDOWN_SECONDS, required_players=2, seed=4002):
+                 countdown_seconds=COUNTDOWN_SECONDS, required_players=2, seed=4002,
+                 god_mode=False):
         if round_seconds <= 0:
             raise ValueError("round_seconds must be positive")
         if countdown_seconds <= 0:
@@ -94,6 +95,9 @@ class GameEngine:
         if required_players not in (1, 2):
             raise ValueError("required_players must be 1 or 2")
         self.clock = clock
+        # Server launch setting, retained across match resets; no phone command
+        # or new wire-protocol mode is needed. Tutorial keeps its refill rules.
+        self.god_mode = bool(god_mode)
         self.players = {1: Player(), 2: Player()}
         self.phase = "LOBBY"
         self.round_seconds = float(round_seconds)
@@ -279,8 +283,9 @@ class GameEngine:
         return False                       # READY, UNREADY, RESTART: not here
 
     def _apply_damage(self, target, raw_damage):
-        """Lower health; returns the damage dealt. A tutorial never knocks out."""
-        damage = round(min(target.health, raw_damage), 2)
+        """Return actual HP lost; God mode leaves both players at least 1 HP."""
+        floor = 1.0 if self.god_mode and not self.tutorial else 0.0
+        damage = round(min(max(0.0, target.health - floor), raw_damage), 2)
         target.health = round(max(0.0, target.health - damage), 2)
         if target.health == 0.0:
             if self.tutorial:
@@ -344,7 +349,8 @@ class GameEngine:
             self._set_phase("FIGHTING")
             elapsed = 0.0   # the fight clock starts now
         if self.phase == "FIGHTING":
-            active = min(elapsed, self.round_time)
+            active = (elapsed if self.god_mode and not self.tutorial else
+                      min(elapsed, self.round_time))
             for player in self.players.values():
                 player.stamina = round(min(100.0, player.stamina +
                                            active * STAMINA_REGEN_PER_SECOND), 2)
@@ -357,7 +363,7 @@ class GameEngine:
             if self.tutorial:
                 if self.practice_due is not None and now >= self.practice_due:
                     self._resolve_practice(now)
-            else:
+            elif not self.god_mode:
                 self.round_time = max(0.0, self.round_time - elapsed)
                 if self.round_time == 0.0:
                     self._end_round(now)

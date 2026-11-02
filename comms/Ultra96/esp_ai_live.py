@@ -222,7 +222,10 @@ async def main(args):
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
-    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds), required_players=args.wait_players)
+    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds,
+                                    god_mode=args.god_mode), required_players=args.wait_players)
+    print('[GAME] God mode ' + ('ON: both players minimum 1 HP; round timer frozen'
+                               if args.god_mode else 'OFF: normal match rules'), flush=True)
     pipeline = Pipeline(args, hub, loop)
     pipeline.thread.start()
     while not pipeline.ready.is_set():
@@ -311,6 +314,8 @@ if __name__ == '__main__':
     parser.add_argument('--phone-key', type=Path, help='matching phone WSS server.key')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
     parser.add_argument('--round-seconds', type=float, default=90)
+    parser.add_argument('--god-mode', action='store_true',
+                        help='both players keep at least 1 HP; freeze round timer (default: off)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     args = parser.parse_args()

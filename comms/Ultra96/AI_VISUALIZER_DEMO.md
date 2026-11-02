@@ -47,6 +47,43 @@ LEFT_UPPERCUT in turn): BLOCK if the player is guarding then, else HIT. A
 two-player server answers `supports_tutorial: false`. Rules:
 CG4002-Viz `docs/protocol.md`, "Tutorial mode".
 
+### God mode for demo play
+
+Add `--god-mode` when launching `esp_ai_live_dashboard.py`, `esp_ai_live.py`
+or `ai_to_visualizer_demo.py`. It is off by default: omit the flag for full
+play with normal KO and round-time endings. Restart the server to change it.
+
+God mode protects **both** players: damage reduces HP to a minimum of 1 and
+the round timer stays at its configured starting value. HIT/BLOCK/MISS,
+tracking checks, stamina costs and regeneration, attack cooldowns, guards,
+pickups and their fight-time expiry still work. Damage events report actual
+HP lost (possibly 0 at the floor). Pausing, disconnects and the normal
+Ready/calibration flow still apply. To finish a demo, pause and return to
+the lobby with Restart match, or stop the server with Ctrl+C.
+
+The launch setting survives Restart match and tutorial exit. Tutorial keeps
+its existing refill-to-100 rule. No phone message fields or mode names change;
+the phone does not need a new button. The server prints `[GAME] God mode ON`
+or `OFF`; the live dashboard also shows it in the MATCH card and `/api/status`
+JSON (`god_mode`). The phone will display a frozen round timer during God mode.
+
+**Ultra96**, after deploying these modified files into the repository:
+
+```sh
+cd /home/xilinx/AR-Boxing/comms/Ultra96
+sudo -E python3 esp_ai_live_dashboard.py \
+  --mode fpga \
+  --ai-dir /home/xilinx/ai/integration-check \
+  --cert /home/xilinx/comms/server.crt \
+  --key /home/xilinx/comms/server.key \
+  --phone-cert /home/xilinx/comms/server.crt \
+  --phone-key /home/xilinx/comms/server.key \
+  --wait-players 2 --round-seconds 300 --show-samples --god-mode
+```
+
+The existing `live_alignment.py`, AI deployment and trusted certificates must
+be available on the board as before. Use `--wait-players 1` for one phone.
+
 ## Run it
 
 From `C:\Dev\AR-Boxing\comms\Ultra96`.

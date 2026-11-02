@@ -295,7 +295,7 @@ const el=(tag,text,cls)=>{let n=document.createElement(tag);if(text!==undefined)
 const age=x=>x===null?'not received':x<1?'< 1 s ago':x.toFixed(1)+' s ago';
 function row(title,status,detail){let n=el('div',undefined,'row');n.append(el('strong',title),el('span',status.text,'badge '+status.tone),el('div',detail,'detail'));return n}
 function render(s){const root=document.getElementById('content');root.replaceChildren();let metrics=el('section',undefined,'metrics');
-for(let [label,value,detail] of [['MATCH',s.game,'HP / stamina come from the server'],['PAIRED INPUT',s.pair_rate.toFixed(1)+' /s','left + right aligned samples'],['FPGA INFERENCE',s.inference_rate.toFixed(1)+' /s',s.counts.inferences+' completed · '+s.mode],['DATA DROPS',String(s.counts.queue_drops+s.counts.stale_drops+s.counts.event_drops),'queue / stale / event totals']]){let n=el('div',undefined,'metric');n.append(el('label',label),el('div',value,'value'),el('small',detail));metrics.append(n)}root.append(metrics);
+for(let [label,value,detail] of [['MATCH',s.game,s.god_mode?'God mode ON · minimum 1 HP · round timer frozen':'God mode OFF · normal match rules'],['PAIRED INPUT',s.pair_rate.toFixed(1)+' /s','left + right aligned samples'],['FPGA INFERENCE',s.inference_rate.toFixed(1)+' /s',s.counts.inferences+' completed · '+s.mode],['DATA DROPS',String(s.counts.queue_drops+s.counts.stale_drops+s.counts.event_drops),'queue / stale / event totals']]){let n=el('div',undefined,'metric');n.append(el('label',label),el('div',value,'value'),el('small',detail));metrics.append(n)}root.append(metrics);
 let players=el('section',undefined,'players');for(let p of s.players){let card=el('article',undefined,'player'),top=el('div',undefined,'ptop');top.append(el('h2','Player '+p.id));if(p.optional)top.append(el('span','OPTIONAL SLOT','optional'));card.append(top);
 card.append(row('AR phone',p.phone,p.phone_detail),row('Right ESP gateway',p.gateway,p.gateway_detail));
 for(let h of p.hands)card.append(row(h.name+' hand data',h.status,h.rate.toFixed(1)+' samples/s · last '+age(h.age)+' · '+h.total+' received'));
@@ -406,6 +406,7 @@ class Dashboard:
                 discarded=align.drops if align else 0,prediction=pred,
                 hp=round(state.health,2),stamina=round(state.stamina,2)))
         return dict(timestamp=time.time(),uptime=max(0,now-self.started),game=self.hub.engine.phase,
+            god_mode=self.hub.engine.god_mode,
             mode=self.args.mode,ai_dir=str(self.args.ai_dir),model=self.pipeline.dashboard_model,
             norm_path=self.pipeline.dashboard_norm,counts=c,players=players,
             pair_rate=max(0,(c['pairs']-pairs)/dt),inference_rate=max(0,(c['inferences']-inferences)/dt),
@@ -456,7 +457,10 @@ async def main(args):
     loop = asyncio.get_running_loop()
     for sig in (signal.SIGINT, signal.SIGTERM):
         loop.add_signal_handler(sig, stop.set)
-    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds), required_players=args.wait_players)
+    hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds,
+                                    god_mode=args.god_mode), required_players=args.wait_players)
+    print('[GAME] God mode ' + ('ON: both players minimum 1 HP; round timer frozen'
+                               if args.god_mode else 'OFF: normal match rules'), flush=True)
     pipeline = Pipeline(args, hub, loop)
     pipeline.thread.start()
     while not pipeline.ready.is_set():
@@ -555,6 +559,8 @@ if __name__ == '__main__':
     parser.add_argument('--phone-key', type=Path, help='matching phone WSS server.key')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
     parser.add_argument('--round-seconds', type=float, default=90)
+    parser.add_argument('--god-mode', action='store_true',
+                        help='both players keep at least 1 HP; freeze round timer (default: off)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     parser.add_argument('--dashboard-host', default='127.0.0.1')

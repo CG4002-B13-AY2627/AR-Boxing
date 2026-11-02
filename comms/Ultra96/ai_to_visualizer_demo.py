@@ -456,8 +456,11 @@ async def main(args):
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
         ctx.load_cert_chain(args.cert, args.key)
     hub = PhoneHub(engine=GameEngine(round_seconds=args.round_seconds,
-                                     countdown_seconds=args.countdown_seconds),
+                                     countdown_seconds=args.countdown_seconds,
+                                     god_mode=args.god_mode),
                    required_players=args.wait_players, auto_start=args.auto_start)
+    print('[GAME] God mode ' + ('ON: both players minimum 1 HP; round timer frozen'
+                               if args.god_mode else 'OFF: normal match rules'), flush=True)
     attack_ids = AttackIds()
 
     async def handle(ws):
@@ -544,6 +547,8 @@ if __name__ == "__main__":
                         help="phone observation deadline in milliseconds (100..2000)")
     parser.add_argument("--round-seconds", type=float, default=90.0,
                         help="single-round duration for timer/round-end tests")
+    parser.add_argument("--god-mode", action="store_true",
+                        help="both players keep at least 1 HP; freeze round timer (default: off)")
     parser.add_argument("--action-map", type=Path,
                         help="JSON mapping model labels to protocol punch names")
     parser.add_argument("--fake-player", type=int, choices=(1, 2), default=1,
