@@ -27,7 +27,7 @@ import protocol as P
 import websockets
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS
-from ai_to_visualizer_demo import send_ai_demo, AttackIds, DEFAULT_ACTION_MAP
+from ai_to_visualizer_demo import send_ai_demo, spawn_items_every, AttackIds, DEFAULT_ACTION_MAP
 from live_alignment import Aligner, CHANNELS
 
 # Deliberately a NEW frame type: old timestamps must never silently enter AI.
@@ -484,7 +484,7 @@ async def main(args):
     monitor = Dashboard(pipeline, gateways, hub, args)
     gateways.monitor = monitor
     dashboard_server = None
-    tick = None
+    tick = spawner = None
     try:
         if not args.no_dashboard:
             dashboard_server = await asyncio.start_server(
@@ -496,6 +496,8 @@ async def main(args):
                                         ping_interval=PING_INTERVAL_SECONDS,
                                         ping_timeout=PING_INTERVAL_SECONDS):
                 tick = asyncio.create_task(periodic_states(hub))
+                if args.spawn_seconds > 0:
+                    spawner = asyncio.create_task(spawn_items_every(hub, args.spawn_seconds))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
                 previous_pairs = previous_windows = 0
                 while not stop.is_set():
@@ -525,9 +527,10 @@ async def main(args):
             dashboard_server.close()
             await dashboard_server.wait_closed()
         pipeline.stop.set()
-        if tick:
-            tick.cancel()
-            await asyncio.gather(tick, return_exceptions=True)
+        for task in (tick, spawner):
+            if task:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
         for task in tuple(pipeline.pending):
             task.cancel()
         await asyncio.gather(*pipeline.pending, return_exceptions=True)
@@ -561,6 +564,9 @@ if __name__ == '__main__':
     parser.add_argument('--round-seconds', type=float, default=90)
     parser.add_argument('--god-mode', action='store_true',
                         help='both players keep at least 1 HP; freeze round timer (default: off)')
+    parser.add_argument('--spawn-seconds', type=float, default=0.0,
+                        help='spawn a health pack or attack boost for each phone this often '
+                             'while FIGHTING (default 0 = no pickups)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     parser.add_argument('--dashboard-host', default='127.0.0.1')
@@ -576,6 +582,8 @@ if __name__ == '__main__':
         parser.error('dashboard port must be 1..65535 and different from 8888/8889')
     if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
         parser.error('invalid round duration/intensity')
+    if not 0 <= args.spawn_seconds <= 600:
+        parser.error('--spawn-seconds must be 0..600')
     try:
         asyncio.run(main(args))
     except KeyboardInterrupt:

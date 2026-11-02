@@ -23,7 +23,7 @@ import protocol as P
 import websockets
 from game_engine import GameEngine
 from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS
-from ai_to_visualizer_demo import send_ai_demo, AttackIds, DEFAULT_ACTION_MAP
+from ai_to_visualizer_demo import send_ai_demo, spawn_items_every, AttackIds, DEFAULT_ACTION_MAP
 from live_alignment import Aligner, CHANNELS
 
 # Deliberately a NEW frame type: old timestamps must never silently enter AI.
@@ -246,7 +246,7 @@ async def main(args):
         phone_tls.minimum_version = ssl.TLSVersion.TLSv1_2
         phone_tls.load_cert_chain(args.phone_cert, args.phone_key)
     gateways = GatewayServer(pipeline)
-    tick = None
+    tick = spawner = None
     try:
         async with await asyncio.start_server(gateways.handle, args.host, 8888, ssl=tls) as esp:
             async with websockets.serve(hub.handle, args.host, 8889, ssl=phone_tls,
@@ -254,6 +254,8 @@ async def main(args):
                                         ping_interval=PING_INTERVAL_SECONDS,
                                         ping_timeout=PING_INTERVAL_SECONDS):
                 tick = asyncio.create_task(periodic_states(hub))
+                if args.spawn_seconds > 0:
+                    spawner = asyncio.create_task(spawn_items_every(hub, args.spawn_seconds))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
                 previous_pairs = previous_windows = 0
                 while not stop.is_set():
@@ -280,9 +282,10 @@ async def main(args):
                             p, t, [round(x, 2) for x in counts], [round(x, 5) for x in si]), flush=True)
     finally:
         pipeline.stop.set()
-        if tick:
-            tick.cancel()
-            await asyncio.gather(tick, return_exceptions=True)
+        for task in (tick, spawner):
+            if task:
+                task.cancel()
+                await asyncio.gather(task, return_exceptions=True)
         for task in tuple(pipeline.pending):
             task.cancel()
         await asyncio.gather(*pipeline.pending, return_exceptions=True)
@@ -316,6 +319,9 @@ if __name__ == '__main__':
     parser.add_argument('--round-seconds', type=float, default=90)
     parser.add_argument('--god-mode', action='store_true',
                         help='both players keep at least 1 HP; freeze round timer (default: off)')
+    parser.add_argument('--spawn-seconds', type=float, default=0.0,
+                        help='spawn a health pack or attack boost for each phone this often '
+                             'while FIGHTING (default 0 = no pickups)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     args = parser.parse_args()
@@ -323,6 +329,8 @@ if __name__ == '__main__':
         parser.error('--phone-cert and --phone-key go together')
     if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
         parser.error('invalid round duration/intensity')
+    if not 0 <= args.spawn_seconds <= 600:
+        parser.error('--spawn-seconds must be 0..600')
     try:
         asyncio.run(main(args))
     except KeyboardInterrupt:
