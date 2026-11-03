@@ -303,8 +303,8 @@ class PhoneHub:
             "player_id": player_id, "server_timestamp": int(time.time() * 1000),
             "heartbeat_interval_ms": 5000,
             "supports_player_commands": True,
-            # The tutorial is single-player: only a --players 1 server offers it.
-            "supports_tutorial": self.required_players == 1,
+            # Any server: one player at a time, the other waits in the lobby.
+            "supports_tutorial": True,
         }
 
     async def player_command(self, player_id, client_id, raw):

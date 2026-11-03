@@ -101,10 +101,10 @@ class GameEngine:
     FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END
     MATCH_END -every connected player RESTART ("Play again"), or nobody left-> LOBBY
     PAUSED -any one player RESTART-> LOBBY
-    Tutorial (single-player server only), mode TUTORIAL throughout:
+    Tutorial (any server, one player at a time), mode TUTORIAL throughout:
     LOBBY -START_TUTORIAL-> CALIBRATING -CALIBRATED-> FIGHTING (no countdown)
     FIGHTING -PAUSE or disconnect-> PAUSED -RESUME-> FIGHTING
-    any tutorial phase -EXIT_TUTORIAL or nobody left-> LOBBY, mode MATCH
+    any tutorial phase -EXIT_TUTORIAL or the tutorial player leaves-> LOBBY, mode MATCH
     The round clock stops, nobody is knocked out (health refills to 100) and
     PRACTICE_PUNCH makes the bag (the other slot) punch back after a windup;
     PRACTICE_ITEM spawns an attack boost for the player to collect.
@@ -204,11 +204,16 @@ class GameEngine:
         if connected:
             return
         player.ready = False
+        if self.tutorial:
+            # Only the player doing the tutorial matters: their leaving ends it
+            # (back to LOBBY for everyone); the other phone coming or going
+            # never pauses it.
+            if player_id == self.tutorial_player:
+                self.reset_match()
+            return
         self.pause()
         if self.phase == "MATCH_END":
             self._reset_if_everyone_is_done()
-        elif self.tutorial and not any(p.connected for p in self.players.values()):
-            self.reset_match()         # nobody left to teach
 
     def reset_match(self):
         """Start a fresh match in LOBBY on the same stream.
@@ -280,9 +285,15 @@ class GameEngine:
         return True
 
     def _tutorial_command(self, player_id, command):
-        """START_TUTORIAL in LOBBY, or any command while the tutorial runs."""
+        """START_TUTORIAL in LOBBY, or any command while the tutorial runs.
+
+        Any server offers it, one player at a time: the other slot plays the
+        bag, and the other phone (if connected) waits in the lobby and can
+        start its own tutorial once this one ends. Only the tutorial player's
+        commands count while it runs.
+        """
         if command == "START_TUTORIAL":
-            if self.tutorial or self.phase != "LOBBY" or self.required_players != 1:
+            if self.tutorial or self.phase != "LOBBY":
                 return False
             for player in self.players.values():
                 connected = player.connected
@@ -420,7 +431,7 @@ class GameEngine:
         if item_type not in ITEM_TYPES:
             raise ValueError("invalid item type")
         self.advance()
-        if self.phase != "FIGHTING" or player_id in self.items:
+        if self.phase != "FIGHTING" or player_id in self.items or self._sidelined(player_id):
             return None
         self.item_serial += 1
         attack = item_type == "ATTACK_MULTIPLIER"
@@ -449,6 +460,10 @@ class GameEngine:
         if player.health < SPAWN_PREFER_HEALTH_BELOW:
             return "HEALTH"
         return "ATTACK_MULTIPLIER" if player.last_spawned == "HEALTH" else "HEALTH"
+
+    def _sidelined(self, player_id):
+        """The other player during someone's tutorial: their actions do nothing."""
+        return self.tutorial and player_id != self.tutorial_player
 
     def pickup_target(self, player_id):
         """The item a pickup action would try to collect, or None."""
@@ -530,7 +545,7 @@ class GameEngine:
         self.advance()
         player = self.players[player_id]
         now = self.clock()
-        if (self.phase != "FIGHTING" or now < player.busy_until or
+        if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
                 now < player.guard_until or player.stamina < STAMINA_COST[punch]):
             return False
         player.stamina = round(player.stamina - STAMINA_COST[punch], 2)
@@ -543,7 +558,7 @@ class GameEngine:
         self.advance()
         player = self.players[player_id]
         now = self.clock()
-        if (self.phase != "FIGHTING" or now < player.busy_until or
+        if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
                 now < player.guard_until or player.stamina < GUARD_COST):
             return False
         player.stamina = round(player.stamina - GUARD_COST, 2)
@@ -594,4 +609,6 @@ class GameEngine:
             "phase_remaining_ms": self.phase_remaining_ms(),
             "match_result": self.match_result(),
             "mode": self.mode,
+            # Whose tutorial it is, so the other phone shows the lobby instead.
+            **({"tutorial_player": self.tutorial_player} if self.tutorial else {}),
         }

@@ -29,11 +29,7 @@ class TutorialEngineTests(unittest.TestCase):
         self.assertEqual(engine.phase, "FIGHTING")
         self.assertEqual(engine.snapshot()["phase_remaining_ms"], 0)
 
-    def test_only_a_single_player_server_offers_it_and_only_in_lobby(self):
-        engine = joined(required=2)
-        self.assertFalse(engine.command(1, "START_TUTORIAL"))
-        self.assertEqual((engine.phase, engine.mode), ("LOBBY", "MATCH"))
-
+    def test_only_in_lobby(self):
         engine = to_fighting(joined(players=(1,), required=1), players=(1,))
         self.assertFalse(engine.command(1, "START_TUTORIAL"), "not mid-match")
         self.assertEqual(engine.mode, "MATCH")
@@ -129,6 +125,58 @@ class TutorialEngineTests(unittest.TestCase):
         engine.set_connected(1, False)
         self.assertEqual((engine.phase, engine.mode), ("LOBBY", "MATCH"))
 
+
+class TwoPlayerTutorialTests(unittest.TestCase):
+    """A --players 2 server: each player can do the tutorial in turn."""
+
+    def test_snapshot_names_whose_tutorial_it_is(self):
+        engine = tutorial_fighting(joined(required=2))
+        self.assertEqual(engine.snapshot()["tutorial_player"], 1)
+        engine.command(1, "EXIT_TUTORIAL")
+        self.assertNotIn("tutorial_player", engine.snapshot())
+
+    def test_players_take_turns_without_a_restart(self):
+        engine = joined(required=2)
+        tutorial_fighting(engine)
+        self.assertFalse(engine.command(2, "START_TUTORIAL"), "one tutorial at a time")
+        self.assertTrue(engine.command(1, "EXIT_TUTORIAL"))
+        self.assertEqual((engine.phase, engine.mode), ("LOBBY", "MATCH"))
+        self.assertTrue(engine.command(2, "START_TUTORIAL"))
+        self.assertEqual(engine.tutorial_player, 2)
+        self.assertTrue(engine.command(2, "CALIBRATED"))
+        engine.command(2, "PRACTICE_PUNCH")
+        engine.clock.advance(PRACTICE_WINDUP_SECONDS)
+        engine.advance()
+        [result] = engine.pop_practice_results()
+        self.assertEqual((result["source_player"], result["target_player"]), (1, 2),
+                         "P1's slot is the bag now")
+        engine.command(2, "EXIT_TUTORIAL")
+        to_fighting(engine)
+        self.assertEqual((engine.phase, engine.mode), ("FIGHTING", "MATCH"), "then a normal match")
+
+    def test_the_other_player_can_not_act_during_it(self):
+        engine = tutorial_fighting(joined(required=2))
+        for command in ("READY", "PAUSE", "PRACTICE_PUNCH", "PRACTICE_ITEM", "EXIT_TUTORIAL"):
+            self.assertFalse(engine.command(2, command), command)
+        self.assertFalse(engine.try_attack(2, "JAB"), "no punches at the player")
+        self.assertFalse(engine.start_guard(2))
+        self.assertIsNone(engine.spawn_item(2, "HEALTH"))
+        self.assertEqual(engine.phase, "FIGHTING")
+
+    def test_the_other_player_leaving_or_joining_never_pauses_it(self):
+        engine = tutorial_fighting(joined(required=2))
+        engine.set_connected(2, False)
+        self.assertEqual((engine.phase, engine.mode), ("FIGHTING", "TUTORIAL"))
+        engine.set_connected(2, True)
+        self.assertEqual(engine.phase, "FIGHTING")
+
+    def test_the_tutorial_player_leaving_returns_everyone_to_the_lobby(self):
+        engine = tutorial_fighting(joined(required=2))
+        engine.set_connected(1, False)
+        self.assertEqual((engine.phase, engine.mode), ("LOBBY", "MATCH"))
+        self.assertTrue(engine.players[2].connected)
+        self.assertTrue(engine.command(2, "START_TUTORIAL"), "the other player can go next")
+
     def test_a_normal_match_after_the_tutorial_still_ends(self):
         engine = tutorial_fighting()
         engine.command(1, "EXIT_TUTORIAL")
@@ -175,7 +223,7 @@ class TutorialHubTests(unittest.IsolatedAsyncioTestCase):
         welcome = hub.welcome(1)
         self.assertIs(welcome["supports_tutorial"], True)
         validators["server-welcome"].validate(welcome)
-        self.assertIs(PhoneHub(required_players=2).welcome(1)["supports_tutorial"], False)
+        self.assertIs(PhoneHub(required_players=2).welcome(1)["supports_tutorial"], True)
 
         sent = []
         hub.ready[1] = object()
