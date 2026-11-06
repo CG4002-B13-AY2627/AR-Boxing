@@ -3,10 +3,11 @@
 import asyncio
 import importlib
 import unittest
+from unittest.mock import patch
 
 import protocol as P
 from game_engine import GameEngine
-from hit_feedback import HIT_DURATION_MS, HitFeedback, PUNCH_NODES
+from hit_feedback import HIT_DURATION_MS, HitFeedback, PUNCH_NODES, run_haptic_keys
 from visualizer_protocol import PhoneHub
 
 
@@ -177,6 +178,61 @@ class GatewayRoutingTests(unittest.IsolatedAsyncioTestCase):
                     await server.wait_closed()
                     await asyncio.wait_for(asyncio.gather(*tasks), 3)
                 self.assertEqual(gateway.feedback.writers, {})
+
+
+class HapticKeyboardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_keyboard_selects_player_and_hand_without_phone_or_match(self):
+        feedback = HitFeedback()
+        feedback.writers = {1: FakeWriter(), 2: FakeWriter()}
+        stop = asyncio.Event()
+
+        class ScriptedKeyboard:
+            def __init__(self, commands):
+                self.commands = commands
+                self.closed = False
+
+            def start(self):
+                for key in ("l", "2", "r", "l", "1", "r", "?", "q"):
+                    self.commands.put_nowait(key)
+
+            def close(self):
+                self.closed = True
+
+        instances = []
+
+        def make_keyboard(commands):
+            keyboard = ScriptedKeyboard(commands)
+            instances.append(keyboard)
+            return keyboard
+
+        with patch("ai_to_visualizer_demo.KeyboardInput", side_effect=make_keyboard):
+            await asyncio.wait_for(run_haptic_keys(feedback, stop), 2)
+        self.assertTrue(stop.is_set())
+        self.assertTrue(instances[0].closed)
+        self.assertEqual(feedback.writers[1].frames,
+                         [P.actuate(1, 1, HIT_DURATION_MS), P.actuate(2, 1, HIT_DURATION_MS)])
+        self.assertEqual(feedback.writers[2].frames,
+                         [P.actuate(2, 1, HIT_DURATION_MS), P.actuate(1, 1, HIT_DURATION_MS)])
+
+    async def test_offline_and_failed_pulses_allow_the_next_key_and_quit(self):
+        feedback = HitFeedback()
+        feedback.writers[2] = FakeWriter(error=ConnectionResetError("offline"))
+        stop = asyncio.Event()
+
+        class ScriptedKeyboard:
+            def __init__(self, commands):
+                self.commands = commands
+
+            def start(self):
+                for key in ("l", "2", "r", "q"):
+                    self.commands.put_nowait(key)
+
+            def close(self):
+                pass
+
+        with patch("ai_to_visualizer_demo.KeyboardInput", ScriptedKeyboard):
+            await asyncio.wait_for(run_haptic_keys(feedback, stop), 2)
+        self.assertTrue(stop.is_set())
 
 
 if __name__ == "__main__":

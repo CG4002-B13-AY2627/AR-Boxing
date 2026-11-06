@@ -29,7 +29,7 @@ from game_engine import GameEngine
 from visualizer_protocol import PhoneHub, periodic_states, MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS
 from ai_to_visualizer_demo import send_ai_demo, spawn_items_every, AttackIds, DEFAULT_ACTION_MAP
 from live_alignment import Aligner, CHANNELS
-from hit_feedback import HitFeedback
+from hit_feedback import HitFeedback, run_haptic_keys
 
 # Deliberately a NEW frame type: old timestamps must never silently enter AI.
 SYNC_SENSOR = P.SYNC_SENSOR
@@ -490,7 +490,7 @@ async def main(args):
     monitor = Dashboard(pipeline, gateways, hub, args)
     gateways.monitor = monitor
     dashboard_server = None
-    tick = spawner = None
+    tick = spawner = haptic_keys = None
     try:
         if not args.no_dashboard:
             dashboard_server = await asyncio.start_server(
@@ -502,6 +502,8 @@ async def main(args):
                                         ping_interval=PING_INTERVAL_SECONDS,
                                         ping_timeout=PING_INTERVAL_SECONDS):
                 tick = asyncio.create_task(periodic_states(hub))
+                if args.haptic_test:
+                    haptic_keys = asyncio.create_task(run_haptic_keys(gateways.feedback, stop))
                 if args.spawn_seconds > 0:
                     spawner = asyncio.create_task(spawn_items_every(hub, args.spawn_seconds))
                 print('[READY] ESP TLS:8888 fw4 | phones WSS:8889 | mode=' + args.mode, flush=True)
@@ -533,7 +535,7 @@ async def main(args):
             dashboard_server.close()
             await dashboard_server.wait_closed()
         pipeline.stop.set()
-        for task in (tick, spawner):
+        for task in (tick, spawner, haptic_keys):
             if task:
                 task.cancel()
                 await asyncio.gather(task, return_exceptions=True)
@@ -575,6 +577,8 @@ if __name__ == '__main__':
                              'while FIGHTING (default 0 = no pickups)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
+    parser.add_argument('--haptic-test', action='store_true',
+                        help='enable terminal keys: 1/2 player, L/R vibrate hand, Q stop server')
     parser.add_argument('--dashboard-host', default='127.0.0.1')
     parser.add_argument('--dashboard-port', type=int, default=8890)
     parser.add_argument('--no-dashboard', action='store_true')
