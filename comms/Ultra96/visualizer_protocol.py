@@ -222,7 +222,7 @@ class PhoneHub:
     """Two-player WSS transport; GameEngine alone owns gameplay state."""
 
     def __init__(self, match_id="match-demo-001", engine=None, required_players=2,
-                 auto_start=False):
+                 auto_start=False, on_hit=None):
         """auto_start=True keeps the old behaviour (joining starts or resumes the
         fight) for phone-less AI runs; normally the phones' PlayerCommands drive
         LOBBY -> CALIBRATING -> COUNTDOWN -> FIGHTING."""
@@ -234,6 +234,7 @@ class PhoneHub:
         self.engine.required_players = required_players
         self.required_players = required_players
         self.auto_start = auto_start
+        self.on_hit = on_hit
         self.command_ids = {1: deque(maxlen=RECENT_COMMAND_IDS),
                             2: deque(maxlen=RECENT_COMMAND_IDS)}
         self.pickups = {}           # request_id -> PickupRequest, for the whole match
@@ -717,6 +718,13 @@ class PhoneHub:
             }
             record.final_event = event
             record.bound_socket = None
+            # The ledger is committed first, so retries/replays cannot vibrate
+            # twice. Bound hardware I/O so feedback cannot stall match delivery.
+            if outcome == "HIT" and self.on_hit is not None:
+                try:
+                    await asyncio.wait_for(self.on_hit(event), timeout=0.25)
+                except Exception as error:
+                    print(f"[HAPTIC ERROR] id={record.attack_id}: {error!r}", flush=True)
             await self.broadcast(event)
             await self._broadcast_transitions_locked()
             await self.broadcast(self.state())
