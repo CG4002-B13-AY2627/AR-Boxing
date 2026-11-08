@@ -6,7 +6,7 @@ no round clock, no KO, and PRACTICE_PUNCH makes the bag punch back.
 
 import unittest
 
-from game_engine import PRACTICE_ITEM_MIN_BEARING, PRACTICE_WINDUP_SECONDS, GameEngine
+from game_engine import PRACTICE_ITEM_BEARING, PRACTICE_WINDUP_SECONDS, GameEngine
 from test_match_flow import FakeClock, contract_validators, joined, to_fighting
 from visualizer_protocol import PhoneHub
 
@@ -192,8 +192,9 @@ class TutorialItemTests(unittest.TestCase):
         self.assertTrue(engine.command(1, "PRACTICE_ITEM"))
         [item] = engine.snapshot()["active_items"]
         self.assertEqual((item["item_type"], item["owner_player"]), ("ATTACK_MULTIPLIER", 1))
-        self.assertGreaterEqual(abs(item["bearing_degrees"]), PRACTICE_ITEM_MIN_BEARING)
-        self.assertLessEqual(abs(item["bearing_degrees"]), 65.0)
+        self.assertEqual(item["bearing_degrees"], PRACTICE_ITEM_BEARING)
+        self.assertEqual(item["bearing_degrees"], -65.0, "the player's left, every time")
+        self.assertEqual(item["distance_m"], 1.0)
         self.assertFalse(engine.command(1, "PRACTICE_ITEM"), "one item at a time")
 
     def test_collecting_it_boosts_damage_on_the_bag(self):

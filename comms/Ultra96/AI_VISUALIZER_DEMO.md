@@ -45,7 +45,7 @@ bag: the round clock stops, health refills to 100 instead of a KO, and
 punches resolve normally (a punch with the marker out of view still MISSes).
 `PRACTICE_PUNCH` makes the bag punch back 1.5 s later (JAB, LEFT_HOOK,
 LEFT_UPPERCUT in turn): BLOCK if the player is guarding then, else HIT.
-`PRACTICE_ITEM` spawns an attack boost to collect. On a two-player server the
+`PRACTICE_ITEM` spawns an attack boost to collect, always 1 m away at -65 degrees (the player's left). On a two-player server the
 other phone waits in its lobby; its commands and wearable actions are ignored
 and its leaving never pauses the tutorial. When the tutorial ends, the other
 player can start theirs, then both press Ready for a match, all without a

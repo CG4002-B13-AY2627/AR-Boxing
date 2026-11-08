@@ -49,8 +49,10 @@ COMMANDS = frozenset(("READY", "UNREADY", "CALIBRATED", "PAUSE", "RESUME",
 # this long after PRACTICE_PUNCH, and the bag cycles through these punches.
 PRACTICE_WINDUP_SECONDS = 1.5
 PRACTICE_PUNCHES = ("JAB", "LEFT_HOOK", "LEFT_UPPERCUT")
-# PRACTICE_ITEM spawns an attack boost to one side, clear of the bag straight ahead.
-PRACTICE_ITEM_MIN_BEARING = 35.0
+# PRACTICE_ITEM spawns an attack boost at a fixed spot 1 m away on the player's
+# left (negative bearing = left), clear of the bag straight ahead and of the
+# visualizer's lesson card, which floats about 30 degrees to the left.
+PRACTICE_ITEM_BEARING = -65.0
 # Pickups (CG4002-Viz docs/protocol.md "Player-specific item pickups"). One item
 # per player at a time, of either type; lifetimes count fight time only.
 HEALTH_ITEM_HEAL = 25.0
@@ -330,9 +332,8 @@ class GameEngine:
             return True
         if command == "PRACTICE_ITEM":
             # The usual one-item rule applies: ignored while one is on the floor.
-            side = -1.0 if self.rng.random() < 0.5 else 1.0
-            bearing = side * self.rng.uniform(PRACTICE_ITEM_MIN_BEARING, HEALTH_ITEM_MAX_BEARING)
-            return self.spawn_item(player_id, "ATTACK_MULTIPLIER", bearing) is not None
+            return self.spawn_item(player_id, "ATTACK_MULTIPLIER",
+                                   PRACTICE_ITEM_BEARING) is not None
         if command == "PAUSE":
             return self.phase == "FIGHTING" and self.pause()
         if (self.phase, command) in (("CALIBRATING", "CALIBRATED"), ("PAUSED", "RESUME")):
