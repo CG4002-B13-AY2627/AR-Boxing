@@ -27,7 +27,7 @@ import traceback
 import uuid
 
 import websockets
-from game_engine import GameEngine
+from game_engine import WEAVE_MIN_CONFIDENCE, GameEngine
 from visualizer_protocol import (
     MAX_MESSAGE_BYTES, PING_INTERVAL_SECONDS, PUNCHES, PhoneHub, periodic_states,
 )
@@ -41,7 +41,7 @@ DEFAULT_ACTION_MAP = {
     "l_uppercut": "LEFT_UPPERCUT", "r_uppercut": "RIGHT_UPPERCUT",
 }
 IGNORED_AI_ACTIONS = frozenset({"idle"})
-UNIMPLEMENTED_AI_ACTIONS = frozenset({"weave", "use"})
+UNIMPLEMENTED_AI_ACTIONS = frozenset({"use"})
 
 
 @dataclass(frozen=True)
@@ -91,6 +91,25 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
                else "cached result replayed" if sent else
                "ignored (no item, not fighting, phone offline or check pending)"), flush=True)
         return sent
+    if event.action == "weave":
+        if attack_id is None:
+            raise ValueError("a stable action ID is required for weave events")
+        if float(event.confidence) < WEAVE_MIN_CONFIDENCE:
+            # A false weave costs 35 stamina and 3 s of no punching: be sure.
+            print(f"[AI WEAVE SKIP] P{player + 1} confidence {event.confidence:.3f} "
+                  f"< {WEAVE_MIN_CONFIDENCE}", flush=True)
+            return None
+        duplicate = attack_id in hub.weave_actions
+        final = await hub.request_weave(player + 1, confidence=float(event.confidence),
+                                        weave_id=attack_id)
+        if final is None:
+            print(f"[AI WEAVE REJECTED] P{player + 1} id={attack_id} "
+                  "(not fighting, mid-punch, cooldown or stamina)", flush=True)
+        else:
+            label = "AI WEAVE CACHED" if duplicate else "AI WEAVE"
+            print(f"[{label}] P{player + 1} id={attack_id} seq={final['seq']}; "
+                  "MatchState carries weave_remaining_ms", flush=True)
+        return final
     if event.action == "block":
         if event.edge not in ("start", "end"):
             raise ValueError("block needs edge='start' or 'end'")
@@ -301,7 +320,7 @@ class KeyboardInput:
 
 
 KEYS_HELP = ("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-             "g guard | x end guard | i spawn health | o spawn attack boost | k pickup | "
+             "g guard | x end guard | w weave | i spawn health | o spawn attack boost | k pickup | "
              "p pause | n new match | s state | r retry last ID | ? help | q quit")
 
 
@@ -313,9 +332,13 @@ def print_match_state(hub):
         boost = (f" ATK=x{value['attack_multiplier']:g} "
                  f"{value['attack_multiplier_remaining_ms'] / 1000:.0f}s"
                  if value["attack_multiplier"] > 1 else "")
+        weave = (f" WEAVE {value['weave_remaining_ms'] / 1000:.1f}s"
+                 if value.get("weave_remaining_ms", 0) > 0 else
+                 f" weave cooldown {value['weave_cooldown_ms'] / 1000:.1f}s"
+                 if value.get("weave_cooldown_ms", 0) > 0 else "")
         players.append(f"P{player} HP={value['health']:g} "
                        f"STA={value['stamina']:g} "
-                       f"GUARD={'ON' if value['is_blocking'] else 'off'}{boost}")
+                       f"GUARD={'ON' if value['is_blocking'] else 'off'}{boost}{weave}")
     print(f"[STATE] seq={hub.state_seq} {state['state']} "
           f"time={state['round_time']:g}s | {' | '.join(players)}", flush=True)
 
@@ -367,6 +390,10 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             kind, player, value = "guard", selected, key == "g"
             action_id = attack_ids.next(player - 1)
             last = kind, player, value, action_id
+        elif key == "w":
+            kind, player, value = "weave", selected, None
+            action_id = attack_ids.next(player - 1)
+            last = kind, player, value, action_id
         elif key in ("i", "o"):
             item = await hub.spawn_item(selected, "HEALTH" if key == "i" else "ATTACK_MULTIPLIER")
             print(f"[ITEM] P{selected} {describe_item(item)} at "
@@ -390,6 +417,16 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
                    f"cached {sent['reason']}" if sent else
                    "ignored (no item, not fighting, phone offline or check pending)"),
                   flush=True)
+            continue
+        if kind == "weave":
+            print(f"[WEAVE] P{player} id={action_id}", flush=True)
+            event = await hub.request_weave(player, confidence=args.fake_confidence,
+                                            weave_id=action_id)
+            print(f"[EVENT] seq={event['seq']} WEAVE {event['effect_duration_ms']} ms "
+                  f"id={action_id}" if event else
+                  "[REJECTED] weave: not fighting, mid-punch, cooldown or stamina < 35",
+                  flush=True)
+            print_match_state(hub)
             continue
         if kind == "punch":
             if key != "r":
@@ -467,7 +504,7 @@ async def main(args):
         if args.fake_punch:
             action_map["FAKE_PUNCH"] = args.fake_punch
         elif (args.fake_action not in action_map and
-              args.fake_action not in IGNORED_AI_ACTIONS | UNIMPLEMENTED_AI_ACTIONS | {"block"}):
+              args.fake_action not in IGNORED_AI_ACTIONS | UNIMPLEMENTED_AI_ACTIONS | {"block", "weave", "pickup"}):
             raise ValueError(f"fake action {args.fake_action!r} is not in the action map")
     ctx = None
     if not args.insecure_ws:

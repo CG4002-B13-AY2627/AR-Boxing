@@ -1,6 +1,7 @@
 """Deterministic game-rule tests; no FPGA or wall-clock sleeps."""
 
 import json
+import os
 from pathlib import Path
 import unittest
 
@@ -131,7 +132,8 @@ class GameEngineTransportTests(unittest.IsolatedAsyncioTestCase):
             from jsonschema import Draft202012Validator
         except ImportError:
             self.skipTest("jsonschema is not installed")
-        contracts = Path(__file__).resolve().parents[3] / "CG4002-Viz" / "contracts"
+        default = Path(__file__).resolve().parents[3] / "CG4002-Viz" / "contracts"
+        contracts = Path(os.environ.get("CG4002_CONTRACTS_DIR", default))
         if not contracts.is_dir():
             self.skipTest("CG4002-Viz contracts checkout is unavailable")
         schemas = {

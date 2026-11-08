@@ -190,6 +190,7 @@ don't use them.
 | `j` | Jab |
 | `h`, `u` | Hook, uppercut (P1 throws left, P2 right) |
 | `g`, `x` | Start or end a guard (1 s, 8 stamina) |
+| `w` | Weave: 3 s invincible to punches (35 stamina, no regen, 4 s cooldown) |
 | `i` | Spawn a health pack for the selected player |
 | `o` | Spawn an attack boost for the selected player |
 | `k` | Pickup: the selected player's phone is asked for its reach |
@@ -235,6 +236,15 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
   `attack_multiplier_remaining_ms`; the `ITEM_PICKUP` event has magnitude 1.5
   and `effect_duration_ms` 30000. Collecting another while boosted resets the
   timer to 30 s (no stacking). Boosts end at ROUND_END and on a new match.
+- Weave (CG4002-Viz `docs/protocol.md` "Weave"): costs 35 stamina, makes the
+  player invincible to punches for 3 s, and stamina does not regenerate while
+  weaving (about 71 stamina in effect). Refused outside FIGHTING, mid-punch,
+  while already weaving, during the 4 s cooldown after a weave, or below 35
+  stamina. No punching or guarding while weaving; starting one ends a guard.
+  A punch that resolves while its target weaves is `DODGE`, 0 damage (the
+  tutorial bag's punch too). Emits a `WEAVE` event (`attack_id` = the action
+  ID, `effect_duration_ms` 3000); MatchState reports `weave_remaining_ms` and
+  `weave_cooldown_ms`. Pause, ROUND_END and a new match clear both.
 - Every action has a stable ID; a retry replays the cached result and never
   applies twice.
 
@@ -249,7 +259,9 @@ python3 ai_to_visualizer_demo.py --source fpga-noise --ai-dir /home/xilinx/ai/de
 
 AI labels map to punches by `DEFAULT_ACTION_MAP` (override with
 `--action-map file.json`); `block` start/end edges become guards, `pickup`
-becomes a pickup action, and `idle`, `weave`, `use` are ignored.
+becomes a pickup action, `weave` becomes a weave when its confidence is at
+least 0.8 (a false weave is expensive), and `idle`, `use` are ignored.
+`--fake-action weave` injects weaves from the fake source.
 
 ## Tests
 

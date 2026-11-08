@@ -29,6 +29,15 @@ STAMINA_REGEN_PER_SECOND = 12.0
 GUARD_COST = 8.0
 GUARD_SECONDS = 1.0
 BLOCK_DAMAGE_MULTIPLIER = 0.3
+# Weave (CG4002-Viz docs/protocol.md "Weave", docs/weave-plan.md): invincible to
+# punches for WEAVE_SECONDS at a high stamina cost. No regeneration while
+# weaving, so it effectively costs about 35 + 36 = 71 stamina. No punching or
+# guarding during it; starting one ends a guard. Another can start only
+# WEAVE_COOLDOWN_SECONDS after it ends.
+WEAVE_COST = 35.0
+WEAVE_SECONDS = 3.0
+WEAVE_COOLDOWN_SECONDS = 4.0
+WEAVE_MIN_CONFIDENCE = 0.8    # AI confidence needed; a false weave is expensive
 ROUND_SECONDS = 90.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
@@ -86,6 +95,8 @@ class Player:
     stamina: float = 100.0
     busy_until: float = 0.0
     guard_until: float = 0.0
+    weave_until: float = 0.0            # clock time; invincible to punches before it
+    weave_cooldown_until: float = 0.0   # clock time; no new weave before it
     connected: bool = False
     ready: bool = False   # "done with this phase": READY, CALIBRATED, RESUME or RESTART (Play again)
     boost_until: float = 0.0   # fight seconds; attack boost active while above fight_seconds
@@ -185,6 +196,8 @@ class GameEngine:
         for player in self.players.values():
             player.guard_until = 0.0
             player.busy_until = 0.0
+            player.weave_until = 0.0
+            player.weave_cooldown_until = 0.0
         return True
 
     def resume(self):
@@ -341,19 +354,23 @@ class GameEngine:
         return damage
 
     def _resolve_practice(self, now):
-        """The bag's punch lands: BLOCK if the player guards now, else HIT."""
+        """The bag's punch lands: DODGE if the player weaves now, BLOCK if they guard, else HIT."""
         self.practice_due = None
         self.practice_serial += 1
         punch = PRACTICE_PUNCHES[(self.practice_serial - 1) % len(PRACTICE_PUNCHES)]
         target_id = self.tutorial_player
         target = self.players[target_id]
-        blocked = target.guard_until > now
-        factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
-        damage = self._apply_damage(target, BASE_DAMAGE[punch] * factor)
+        if target.weave_until > now:
+            outcome, damage = "DODGE", 0.0
+        else:
+            blocked = target.guard_until > now
+            factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
+            damage = self._apply_damage(target, BASE_DAMAGE[punch] * factor)
+            outcome = "BLOCK" if blocked else "HIT"
         self.practice_results.append({
             "attack_id": f"practice-m{self.match_number}-{self.practice_serial:04d}",
             "source_player": 3 - target_id, "target_player": target_id,
-            "punch": punch, "outcome": "BLOCK" if blocked else "HIT", "damage": damage,
+            "punch": punch, "outcome": outcome, "damage": damage,
         })
 
     def pop_practice_results(self):
@@ -397,11 +414,16 @@ class GameEngine:
         if self.phase == "FIGHTING":
             active = (elapsed if self.god_mode and not self.tutorial else
                       min(elapsed, self.round_time))
+            started = now - elapsed
             for player in self.players.values():
+                # No regeneration for the part of this step spent weaving.
+                weaving = max(0.0, min(now, player.weave_until) - started)
                 player.stamina = round(min(100.0, player.stamina +
-                                           active * STAMINA_REGEN_PER_SECOND), 2)
+                                           max(0.0, active - weaving) * STAMINA_REGEN_PER_SECOND), 2)
                 if now >= player.guard_until:
                     player.guard_until = 0.0
+                if now >= player.weave_until:
+                    player.weave_until = 0.0
             self.fight_seconds += active
             for owner, item in list(self.items.items()):
                 if item.expires_at <= self.fight_seconds:
@@ -536,6 +558,8 @@ class GameEngine:
         self.round_end_at = now + ROUND_END_SECONDS
         for player in self.players.values():
             player.guard_until = 0.0
+            player.weave_until = 0.0
+            player.weave_cooldown_until = 0.0
         self.transitions.append("ROUND_END")
 
     def try_attack(self, player_id, punch):
@@ -546,7 +570,8 @@ class GameEngine:
         player = self.players[player_id]
         now = self.clock()
         if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
-                now < player.guard_until or player.stamina < STAMINA_COST[punch]):
+                now < player.guard_until or now < player.weave_until or
+                player.stamina < STAMINA_COST[punch]):
             return False
         player.stamina = round(player.stamina - STAMINA_COST[punch], 2)
         player.busy_until = now + ANIMATION_SECONDS[punch]
@@ -559,11 +584,50 @@ class GameEngine:
         player = self.players[player_id]
         now = self.clock()
         if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
-                now < player.guard_until or player.stamina < GUARD_COST):
+                now < player.guard_until or now < player.weave_until or
+                player.stamina < GUARD_COST):
             return False
         player.stamina = round(player.stamina - GUARD_COST, 2)
         player.guard_until = now + GUARD_SECONDS
         return True
+
+    def start_weave(self, player_id):
+        """Charge WEAVE_COST once and make the player invincible to punches for 3 s.
+
+        Accepted only while FIGHTING, not mid-punch, not already weaving or in
+        the cooldown, and with enough stamina. Ends an active guard.
+        """
+        if player_id not in self.players:
+            raise ValueError("invalid player")
+        self.advance()
+        player = self.players[player_id]
+        now = self.clock()
+        if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
+                now < player.weave_until or now < player.weave_cooldown_until or
+                player.stamina < WEAVE_COST):
+            return False
+        player.stamina = round(player.stamina - WEAVE_COST, 2)
+        player.guard_until = 0.0
+        player.weave_until = now + WEAVE_SECONDS
+        player.weave_cooldown_until = player.weave_until + WEAVE_COOLDOWN_SECONDS
+        return True
+
+    def weave_remaining_ms(self, player_id):
+        """Time left in this player's weave (0 when not weaving or not FIGHTING)."""
+        player = self.players[player_id]
+        now = self.clock()
+        if self.phase != "FIGHTING" or player.weave_until <= now:
+            return 0
+        return max(1, min(10000, math.ceil((player.weave_until - now) * 1000)))
+
+    def weave_cooldown_ms(self, player_id):
+        """Time until this player may weave again; 0 while weaving (contract rule)."""
+        player = self.players[player_id]
+        now = self.clock()
+        if (self.phase != "FIGHTING" or player.weave_until > now or
+                player.weave_cooldown_until <= now):
+            return 0
+        return max(1, min(30000, math.ceil((player.weave_cooldown_until - now) * 1000)))
 
     def end_guard(self, player_id):
         if player_id not in self.players:
@@ -581,6 +645,8 @@ class GameEngine:
         target = self.players[3 - source_player]
         if self.phase != "FIGHTING" or not tracked:
             return "MISS", 0.0
+        if target.weave_until > self.clock():
+            return "DODGE", 0.0        # judged at resolution time, like the guard
         blocked = target.guard_until > self.clock()
         factor = BLOCK_DAMAGE_MULTIPLIER if blocked else 1.0
         # protocol.md: boosted = base * attack_multiplier, then the block factor.
@@ -597,6 +663,8 @@ class GameEngine:
                 "is_blocking": self.phase == "FIGHTING" and player.guard_until > now,
                 "attack_multiplier": self.attack_multiplier(player_id),
                 "attack_multiplier_remaining_ms": self.boost_remaining_ms(player_id),
+                "weave_remaining_ms": self.weave_remaining_ms(player_id),
+                "weave_cooldown_ms": self.weave_cooldown_ms(player_id),
                 "connected": player.connected,
                 "ready": player.ready,
             }

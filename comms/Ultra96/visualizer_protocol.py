@@ -10,7 +10,7 @@ from collections import deque
 from dataclasses import dataclass
 
 import websockets
-from game_engine import ATTACK_BOOST_SECONDS, COMMANDS, GameEngine
+from game_engine import ATTACK_BOOST_SECONDS, COMMANDS, WEAVE_SECONDS, GameEngine
 
 
 PROTOCOL_VERSION = 2
@@ -246,6 +246,7 @@ class PhoneHub:
         self.attacks = {}           # full-match ledger, including resolved IDs
         self.rejected_attacks = {}  # rejected IDs cannot become valid on retry
         self.guard_actions = {}     # stable classified guard ID -> accepted/rejected result
+        self.weave_actions = {}     # stable classified weave ID -> accepted/rejected result
         self.pending = {}           # unresolved subset for reconnect delivery
         self.resolver_tasks = set()
         self.session_serial = 0
@@ -360,6 +361,7 @@ class PhoneHub:
                         if record.final_event is None}
         self.rejected_attacks.clear()
         self.guard_actions.clear()
+        self.weave_actions.clear()
         if self.auto_start and len(self.ready) >= self.required_players:
             self.engine.start()
         print(f"[MATCH] match {self.engine.match_number} starts in {self.engine.phase}", flush=True)
@@ -610,6 +612,52 @@ class PhoneHub:
                 "attack_id": guard_id,
             }
             self.guard_actions[guard_id] = (source_player, active, confidence, event)
+            await self.broadcast(event)
+            await self._broadcast_transitions_locked()
+            await self.broadcast(self.state())
+        return event
+
+    async def request_weave(self, source_player, confidence=1.0, weave_id=None):
+        """Accept a classified weave once per stable ID (CG4002-Viz protocol.md "Weave").
+
+        Accepted: a WEAVE event (attack_id = the action ID, effect_duration_ms =
+        the invincibility window), then state. Rejected (not fighting, mid-punch,
+        cooldown, low stamina): state only. A repeated ID returns the first result.
+        """
+        if (source_player not in (1, 2) or
+                type(confidence) not in (int, float) or
+                not math.isfinite(confidence) or not 0 <= confidence <= 1 or
+                (weave_id is not None and
+                 (not isinstance(weave_id, str) or not IDENTIFIER.fullmatch(weave_id)))):
+            raise ValueError("invalid weave request")
+        if weave_id is None:
+            weave_id = "weave-" + uuid.uuid4().hex
+        async with self.broadcast_lock:
+            existing = self.weave_actions.get(weave_id)
+            if existing is not None:
+                if existing[:2] != (source_player, confidence):
+                    raise ValueError("conflicting duplicate weave ID")
+                return existing[2]
+            if len(self.weave_actions) >= MAX_ATTACK_RECORDS:
+                raise RuntimeError("weave ledger full; start a new match")
+            if not self.engine.start_weave(source_player):
+                self.weave_actions[weave_id] = (source_player, confidence, None)
+                await self._broadcast_transitions_locked()
+                await self.broadcast(self.state())
+                return None
+            self.event_seq += 1
+            event = {
+                "type": "GameEvent", "protocol_version": PROTOCOL_VERSION,
+                "match_id": self.match_id, "stream_id": self.stream_id,
+                "seq": self.event_seq, "timestamp": int(time.time() * 1000),
+                "event": "WEAVE", "source_player": source_player,
+                "target_player": 3 - source_player, "punch": "",
+                "confidence": confidence, "intensity": 0.0,
+                "outcome": "NONE", "damage": 0.0,
+                "attack_id": weave_id,
+                "effect_duration_ms": int(round(WEAVE_SECONDS * 1000)),
+            }
+            self.weave_actions[weave_id] = (source_player, confidence, event)
             await self.broadcast(event)
             await self._broadcast_transitions_locked()
             await self.broadcast(self.state())
