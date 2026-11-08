@@ -10,7 +10,7 @@ from zoneinfo import ZoneInfo
 
 #IMU fields are stored as signed raw integer sensor counts.
 
-PORT = "COM9"
+PORT = "COM5"
 BAUD_RATE = 115200
 OUTPUT_FILE = "imu_two_hands_raw.csv" 
 

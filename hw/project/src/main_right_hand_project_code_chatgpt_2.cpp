@@ -68,8 +68,8 @@ bool mpuWrite(uint8_t reg,uint8_t val) {
 
 bool initMPU() {
   return mpuWrite(0x6B,0x00) &&
-         mpuWrite(0x1B,0x00) && // +/-250 dps
-         mpuWrite(0x1C,0x00) && // +/-2 g
+         mpuWrite(0x1B,0x18) && // +/-2000 dps
+         mpuWrite(0x1C,0x18) && // +/-16 g
          mpuWrite(0x1A,0x03) && // DLPF
          mpuWrite(0x19,0x09);   // 100 Hz
 }

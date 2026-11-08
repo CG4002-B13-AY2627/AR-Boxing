@@ -59,11 +59,11 @@ bool initMPU6050() {
   // Wake MPU6050.
   if (!mpuWrite(0x6B, 0x00)) return false;
 
-  // Gyroscope full scale: +/-250 deg/s.
-  if (!mpuWrite(0x1B, 0x00)) return false;
+  // Gyroscope full scale: +/-2000 deg/s (16.4 LSB per deg/s).
+  if (!mpuWrite(0x1B, 0x18)) return false;
 
-  // Accelerometer full scale: +/-2 g.
-  if (!mpuWrite(0x1C, 0x00)) return false;
+  // Accelerometer full scale: +/-16 g (2048 LSB per g).
+  if (!mpuWrite(0x1C, 0x18)) return false;
 
   // Digital low-pass filter enabled.
   // DLPF_CFG = 3: ~44 Hz accel / ~42 Hz gyro bandwidth.

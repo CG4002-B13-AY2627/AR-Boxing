@@ -17,7 +17,7 @@ const int BUTTON_PIN = 26;
 const int BUZZER_PIN = 25;
 
 // RIGHT-HAND ESP32 Wi-Fi STA MAC address.
-uint8_t RIGHT_HAND_MAC[] = {0x6C, 0xC8, 0x40, 0x7C, 0xB3, 0x4C};
+uint8_t RIGHT_HAND_MAC[] = {0x70, 0x4B, 0xCA, 0xE5, 0x18, 0xC4};
 
 const unsigned long SAMPLE_INTERVAL = 10; // ~100 Hz
 unsigned long lastSampleTime = 0;
@@ -56,11 +56,11 @@ bool initMPU6050() {
   // Wake MPU6050.
   if (!mpuWrite(0x6B, 0x00)) return false;
 
-  // Gyroscope full scale: +/-250 deg/s.
-  if (!mpuWrite(0x1B, 0x00)) return false;
+  // Gyroscope full scale: +/-2000 deg/s (16.4 LSB per deg/s).
+  if (!mpuWrite(0x1B, 0x18)) return false;
 
-  // Accelerometer full scale: +/-2 g.
-  if (!mpuWrite(0x1C, 0x00)) return false;
+  // Accelerometer full scale: +/-16 g (2048 LSB per g).
+  if (!mpuWrite(0x1C, 0x18)) return false;
 
   // Digital low-pass filter enabled.
   // DLPF_CFG = 3: ~44 Hz accel / ~42 Hz gyro bandwidth.

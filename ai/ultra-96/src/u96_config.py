@@ -204,11 +204,11 @@ IIO_ROOT = Path("/sys/bus/iio/devices")
 # --- preprocess.py ----------------------------------------------------------
 
 # MPU-6050 full-scale sensitivity the node firmware configures: ACCEL_CONFIG
-# (0x1C) = 0 is +/-2 g, GYRO_CONFIG (0x1B) = 0 is +/-250 deg/s. The nodes send
+# (0x1C) = 0x18 is +/-16 g, GYRO_CONFIG (0x1B) = 0x18 is +/-2000 deg/s. The nodes send
 # raw int16 counts; training saw m/s^2 and rad/s. If the firmware changes
 # either range these change with it, or every sample is mis-scaled.
-ACCEL_LSB_PER_G = 16384.0
-GYRO_LSB_PER_DPS = 131.0
+ACCEL_LSB_PER_G = 2048.0
+GYRO_LSB_PER_DPS = 16.4
 
 # --- postprocess.py ---------------------------------------------------------
 

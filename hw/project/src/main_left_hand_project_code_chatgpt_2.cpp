@@ -45,8 +45,8 @@ bool mpuWrite(uint8_t reg, uint8_t val) {
 
 bool initMPU() {
   return mpuWrite(0x6B,0x00) && // wake
-         mpuWrite(0x1B,0x00) && // gyro +/-250 dps
-         mpuWrite(0x1C,0x00) && // accel +/-2 g
+         mpuWrite(0x1B,0x18) && // gyro +/-2000 dps
+         mpuWrite(0x1C,0x18) && // accel +/-16 g
          mpuWrite(0x1A,0x03) && // DLPF
          mpuWrite(0x19,0x09);   // 100 Hz
 }
