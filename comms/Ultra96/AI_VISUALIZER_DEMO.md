@@ -223,8 +223,8 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
   without enough stamina.
 - Round: 90 s (`--round-seconds`). Result at MATCH_END: higher health wins,
   equal is a draw.
-- Pickups: one item per player at a time (health pack or attack boost), 1 m
-  away at a random bearing within +/-65 deg, 30 s of fight time to collect
+- Pickups: one item per player at a time (health pack or attack boost), 1 to
+  2.5 m away at a random bearing within +/-65 deg, 30 s of fight time to collect
   (frozen while paused). Spawned by `i` (health) / `o` (attack boost), or
   `--spawn-seconds N` for each connected phone while fighting. Each player's
   delay is drawn separately from 80% to 120% of N fight seconds, starting

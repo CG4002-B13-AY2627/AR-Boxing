@@ -27,8 +27,12 @@ class EnginePickupTests(unittest.TestCase):
         self.assertEqual(item.owner, 1)
         self.assertTrue(-65 <= item.bearing_degrees <= 65)
         self.assertIsNone(engine.spawn_health(1), "one at a time")
-        self.assertIsNotNone(engine.spawn_health(2))
-        self.assertEqual(len(engine.snapshot()["active_items"]), 2)
+        other = engine.spawn_health(2)
+        self.assertIsNotNone(other)
+        self.assertNotEqual(item.distance_m, other.distance_m)
+        positions = {entry["id"]: entry["distance_m"] for entry in engine.snapshot()["active_items"]}
+        self.assertEqual(positions, {item.item_id: item.distance_m, other.item_id: other.distance_m})
+        self.assertTrue(all(1.0 <= distance <= 2.5 for distance in positions.values()))
 
     def test_items_match_the_contract(self):
         validators = contract_validators()

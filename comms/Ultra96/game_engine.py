@@ -59,7 +59,9 @@ PRACTICE_ITEM_BEARING = -65.0
 # per player at a time, of either type; lifetimes count fight time only.
 HEALTH_ITEM_HEAL = 25.0
 HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
-HEALTH_ITEM_DISTANCE_M = 1.0
+ITEM_MIN_DISTANCE_M = 1.0
+ITEM_MAX_DISTANCE_M = 2.5
+PRACTICE_ITEM_DISTANCE_M = 1.0
 HEALTH_ITEM_MAX_BEARING = 65.0
 PICKUP_RADIUS_M = 0.5
 # Attack boost (CG4002-Viz docs/attack-boost-pickup-plan.md): collecting it
@@ -80,6 +82,7 @@ class PickupItem:
     bearing_degrees: float
     expires_at: float          # in fight seconds, so a pause freezes it
     item_type: str = "HEALTH"
+    distance_m: float = ITEM_MIN_DISTANCE_M
 
     @property
     def magnitude(self):
@@ -461,7 +464,7 @@ class GameEngine:
         """Place one pickup for this player (FIGHTING only, one item at a time).
 
         Spawning is an explicit trigger (operator key or --spawn-seconds); the
-        phone places it 1 m away at the given bearing on its own floor.
+        phone places it at the chosen distance and bearing on its own floor.
         """
         if player_id not in self.players:
             raise ValueError("invalid player")
@@ -480,6 +483,8 @@ class GameEngine:
                                                    HEALTH_ITEM_MAX_BEARING), 1),
             expires_at=self.fight_seconds + (ATTACK_ITEM_SECONDS if attack else HEALTH_ITEM_SECONDS),
             item_type=item_type,
+            distance_m=(PRACTICE_ITEM_DISTANCE_M if self.tutorial else
+                        round(self.rng.uniform(ITEM_MIN_DISTANCE_M, ITEM_MAX_DISTANCE_M), 2)),
         )
         self.items[player_id] = item
         self.players[player_id].next_item_at = None
@@ -574,7 +579,7 @@ class GameEngine:
     def _active_items(self):
         return [{
             "id": item.item_id, "item_type": item.item_type, "owner_player": item.owner,
-            "distance_m": HEALTH_ITEM_DISTANCE_M, "bearing_degrees": item.bearing_degrees,
+            "distance_m": item.distance_m, "bearing_degrees": item.bearing_degrees,
             "magnitude": item.magnitude, "effect_duration_ms": item.effect_duration_ms,
             "remaining_ms": max(0, min(120000, math.ceil(
                 (item.expires_at - self.fight_seconds) * 1000))),
