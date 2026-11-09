@@ -14,7 +14,7 @@ from zoneinfo import ZoneInfo
 
 PORT = "COM5"
 BAUD_RATE = 115200
-OUTPUT_FILE = "imu_two_hands_raw.csv"
+OUTPUT_FILE = "imu_two_hands_raw_16g_2000dps.csv"
 
 # The gloves stream at ~100 Hz (one row per ~10 ms). Timing below is counted
 # in rows read, so it follows the data rather than the PC clock.
@@ -40,8 +40,8 @@ CONTINUOUS_ACTIONS = ("idle", "block")
 # existing data, idle noise stays under ~8500 counts 99% of the time and even
 # weak punches peak above ~20000.
 REST_ROWS = 20
-ACCEL_THRESHOLD = 10000
-GYRO_THRESHOLD = 10000
+ACCEL_THRESHOLD = 1250
+GYRO_THRESHOLD = 1250
 
 # The thresholds trip a few rows after the movement really begins, so each
 # action also keeps this many rows from before that point.
