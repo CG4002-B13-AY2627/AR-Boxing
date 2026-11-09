@@ -4,6 +4,7 @@ import asyncio
 import json
 from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 import websockets
 
@@ -109,17 +110,32 @@ class EngineAttackBoostTests(unittest.TestCase):
         engine.reset_match()
         self.assertEqual(engine.snapshot()["player_1"]["attack_multiplier_remaining_ms"], 0)
 
-    def test_timed_spawns_prefer_health_when_low_then_alternate(self):
-        engine = fighting()
+    def test_timed_spawns_use_independent_fight_clock_deadlines_and_types(self):
+        clock = FakeClock()
+        engine = fighting(clock)
         engine.players[1].health = 40.0
-        self.assertEqual(engine.next_spawn_type(1), "HEALTH")
-        engine.players[1].health = 80.0
-        self.assertEqual(engine.next_spawn_type(1), "HEALTH", "nothing spawned yet")
-        engine.spawn_health(1)
-        self.assertEqual(engine.next_spawn_type(1), "ATTACK_MULTIPLIER")
-        engine.items.clear()
-        engine.spawn_attack(1)
-        self.assertEqual(engine.next_spawn_type(1), "HEALTH")
+        with patch.object(engine.rng, "uniform", side_effect=(24, 36)) as draw_delay:
+            self.assertEqual(engine.spawn_due_items((1, 2), 30), [])
+            self.assertEqual([call.args for call in draw_delay.call_args_list], [(24, 36)] * 2)
+        clock.advance(24)
+        with patch.object(engine.rng, "choice", return_value="ATTACK_MULTIPLIER") as choose:
+            [one] = engine.spawn_due_items((1, 2), 30)
+            self.assertEqual((one.owner, one.item_type), (1, "HEALTH"))
+            choose.assert_not_called()
+            engine.pause()
+            clock.advance(120)
+            self.assertEqual(engine.spawn_due_items((1, 2), 30), [])
+            engine.resume()
+            clock.advance(12)
+            [two] = engine.spawn_due_items((1, 2), 30)
+            self.assertEqual((two.owner, two.item_type), (2, "ATTACK_MULTIPLIER"))
+            self.assertEqual(set(engine.items), {1, 2})
+        engine.collect_item(1, one.item_id, "AVAILABLE", 0.2)
+        with patch.object(engine.rng, "uniform", return_value=24):
+            self.assertEqual(engine.spawn_due_items((1, 2), 30), [])
+        self.assertEqual(engine.players[1].next_item_at, 60)
+        engine.reset_match()
+        self.assertIsNone(engine.players[1].next_item_at)
 
     def test_unknown_item_type_is_refused(self):
         with self.assertRaises(ValueError):

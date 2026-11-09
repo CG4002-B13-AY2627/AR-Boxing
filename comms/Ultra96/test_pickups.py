@@ -182,6 +182,29 @@ class SocketPickupTests(unittest.IsolatedAsyncioTestCase):
             self.assertEqual(state["player_1"]["health"], 85.0)
             self.assertEqual(state["active_items"], [])
 
+    async def test_each_phone_only_receives_its_own_active_item(self):
+        second = await self.hub.spawn_item(2, "ATTACK_MULTIPLIER")
+        seq = self.hub.state_seq
+        for phone, own in ((self.one, self.item), (self.two, second)):
+            state = await self.next_of(phone, "MatchState")
+            while state["seq"] < seq:
+                state = await self.next_of(phone, "MatchState")
+            self.assertEqual([item["id"] for item in state["active_items"]], [own.item_id])
+            self.assertEqual(state["seq"], seq)
+            self.validate("match-state", state)
+
+        await self.hub.request_pickup(1, "private-replay")
+        check = await self.next_of(self.one, "PickupCheck")
+        await self.one.send(self.answer(check))
+        await self.next_of(self.one, "PickupResult")
+        await self.next_of(self.one, "GameEvent")
+        await self.next_of(self.one, "MatchState")
+        await self.hub.request_pickup(1, "private-replay")
+        await self.next_of(self.one, "PickupResult")
+        replay = await self.next_of(self.one, "MatchState")
+        self.assertEqual(replay["active_items"], [])
+        self.assertEqual(self.hub.engine.items[2].item_id, second.item_id)
+
     async def test_retrying_an_action_replays_without_a_second_effect(self):
         await self.hub.request_pickup(1, "act-1")
         check = await self.next_of(self.one, "PickupCheck")

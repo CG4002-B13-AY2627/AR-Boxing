@@ -410,7 +410,7 @@ class PhoneHub:
                 if prior.result is not None and player_id in self.ready:
                     socket = self.ready[player_id]
                     await send_bounded(socket, encode(prior.result))
-                    await send_bounded(socket, encode(self.state()))
+                    await send_bounded(socket, encode(self.state(player_id)))
                 return prior.result
             socket = self.ready.get(player_id)
             item = self.engine.pickup_target(player_id)
@@ -473,7 +473,7 @@ class PhoneHub:
                 # A retry of the same evidence replays; different evidence is ignored.
                 if request.observation in (None, observation) and socket is not None:
                     await send_bounded(socket, encode(request.result))
-                    await send_bounded(socket, encode(self.state()))
+                    await send_bounded(socket, encode(self.state(player_id)))
                 return request.result
             if time.monotonic() >= request.deadline:
                 reason, item_type, magnitude = "OBSERVATION_TIMEOUT", "HEALTH", 0.0
@@ -506,14 +506,29 @@ class PhoneHub:
                 await self.broadcast(self.state())
             return result
 
-    def state(self):
+    @staticmethod
+    def _state_for_player(message, player_id):
+        return {**message, "active_items": [
+            item for item in message["active_items"] if item["owner_player"] == player_id
+        ]}
+
+    def state(self, player_id=None):
         self.state_seq += 1
-        return {
+        message = {
             "type": "MatchState", "protocol_version": PROTOCOL_VERSION,
             "match_id": self.match_id, "stream_id": self.stream_id,
             "seq": self.state_seq, "timestamp": int(time.time() * 1000),
             **self.engine.snapshot(),
         }
+        return message if player_id is None else self._state_for_player(message, player_id)
+
+    async def spawn_due_items(self, seconds):
+        async with self.broadcast_lock:
+            items = self.engine.spawn_due_items(tuple(self.ready), seconds)
+            await self._broadcast_transitions_locked()
+            if items:
+                await self.broadcast(self.state())
+            return items
 
     async def request_punch(self, source_player, punch, confidence, intensity,
                             response_timeout_ms=750, attack_id=None):
@@ -769,7 +784,7 @@ class PhoneHub:
         record.last_replay_session = session_id
         async with self.broadcast_lock:
             if await send_bounded(websocket, encode(record.final_event)):
-                await send_bounded(websocket, encode(self.state()))
+                await send_bounded(websocket, encode(self.state(record.source_player)))
 
     async def handle(self, websocket):
         player_id = None
@@ -793,9 +808,7 @@ class PhoneHub:
                 if self.auto_start and len(self.ready) >= self.required_players:
                     self.engine.start() or self.engine.resume()
                 # Everyone sees the new connected flag; the joiner gets its full state.
-                snapshot = encode(self.state())
-                await asyncio.gather(*(send_bounded(socket, snapshot)
-                                       for socket in self.ready.values()))
+                await self.broadcast(self.state())
             for record in tuple(self.pending.values()):
                 if record.source_player == player_id and not record.observation_future.done():
                     await self._send_attempt(record, websocket)
@@ -837,12 +850,16 @@ class PhoneHub:
                 await self.release(player_id, websocket)
 
     async def broadcast(self, message):
-        sockets = tuple(self.ready.values())
+        sockets = tuple(self.ready.items())
         if not sockets:
             return 0
-        payload = encode(message)
         # Each send is bounded, so one stalled phone can't hold up the other.
-        await asyncio.gather(*(send_bounded(socket, payload) for socket in sockets))
+        if message["type"] == "MatchState":
+            await asyncio.gather(*(send_bounded(socket, encode(self._state_for_player(message, player)))
+                                   for player, socket in sockets))
+        else:
+            payload = encode(message)
+            await asyncio.gather(*(send_bounded(socket, payload) for _, socket in sockets))
         return len(sockets)
 
     async def broadcast_state(self):

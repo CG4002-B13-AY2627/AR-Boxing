@@ -584,8 +584,8 @@ if __name__ == '__main__':
     parser.add_argument('--god-mode', action='store_true',
                         help='both players keep at least 1 HP; freeze round timer (default: off)')
     parser.add_argument('--spawn-seconds', type=float, default=0.0,
-                        help='spawn a health pack or attack boost for each phone this often '
-                             'while FIGHTING (default 0 = no pickups)')
+                        help='average item delay per player in fight seconds (independent ±20%% jitter; '
+                             'default 0 = no automatic pickups)')
     parser.add_argument('--demo-intensity', type=float, default=.6)
     parser.add_argument('--show-samples', action='store_true')
     parser.add_argument('--haptic-test', action='store_true',

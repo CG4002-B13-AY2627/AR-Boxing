@@ -468,21 +468,11 @@ def describe_item(item):
 
 
 async def spawn_items_every(hub, seconds):
-    """Optional --spawn-seconds: give each connected phone an item while FIGHTING.
-
-    Health when the player is below 50 HP, otherwise health and attack boost
-    alternate. A player who still has an item is skipped (one at a time).
-    Shared by the live ESP servers.
-    """
+    """Poll the independent per-player spawn deadlines on the fight clock."""
     while True:
-        await asyncio.sleep(seconds)
-        if hub.engine.phase == "FIGHTING":
-            for player in tuple(hub.ready):
-                if player in hub.engine.items:
-                    continue
-                item = await hub.spawn_item(player, hub.engine.next_spawn_type(player))
-                if item is not None:
-                    print(f"[ITEM] P{player} {describe_item(item)}", flush=True)
+        for item in await hub.spawn_due_items(seconds):
+            print(f"[ITEM] P{item.owner} {describe_item(item)}", flush=True)
+        await asyncio.sleep(0.1)
 
 
 spawn_health_every = spawn_items_every   # older name
@@ -591,8 +581,8 @@ if __name__ == "__main__":
     parser.add_argument("--countdown-seconds", type=float, default=3.0,
                         help="COUNTDOWN length before FIGHTING (default: 3)")
     parser.add_argument("--spawn-seconds", type=float, default=0.0,
-                        help="spawn an item for each phone this often while FIGHTING: "
-                             "health below 50 HP, else health and attack boost alternate "
+                        help="average item delay per player in fight seconds (independent ±20%% jitter): "
+                             "health below 50 HP, otherwise a random type "
                              "(default 0 = only with the 'i'/'o' keys)")
     parser.add_argument("--insecure-ws", action="store_true",
                         help="plain ws:// for local Unity Editor tests; only with --host 127.0.0.1")

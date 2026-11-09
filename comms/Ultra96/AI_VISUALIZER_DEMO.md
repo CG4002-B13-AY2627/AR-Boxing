@@ -226,10 +226,13 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
 - Pickups: one item per player at a time (health pack or attack boost), 1 m
   away at a random bearing within +/-65 deg, 30 s of fight time to collect
   (frozen while paused). Spawned by `i` (health) / `o` (attack boost), or
-  `--spawn-seconds N` for every connected phone while fighting: health when the
-  player is below 50 HP, otherwise health and attack boost alternate. Cleared at
-  ROUND_END. The live servers (`esp_ai_live.py`, `esp_ai_live_dashboard.py`)
-  take the same `--spawn-seconds` (default 0: no pickups).
+  `--spawn-seconds N` for each connected phone while fighting. Each player's
+  delay is drawn separately from 80% to 120% of N fight seconds, starting
+  when they have no item. Players below 50 HP receive health. Otherwise the
+  type is drawn randomly for each spawn. Each phone receives only its own
+  active item. Items clear at ROUND_END. The live servers (`esp_ai_live.py`,
+  `esp_ai_live_dashboard.py`) take the same `--spawn-seconds` (default 0:
+  no automatic spawns).
 - Health pack: +25 HP (capped at 100, consumed even at full).
 - Attack boost: the collector's punches deal 1.5x damage for 30 s of fight time
   (frozen while paused). MatchState reports `attack_multiplier` and

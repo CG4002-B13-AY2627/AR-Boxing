@@ -106,7 +106,7 @@ class Player:
     connected: bool = False
     ready: bool = False   # "done with this phase": READY, CALIBRATED, RESUME or RESTART (Play again)
     boost_until: float = 0.0   # fight seconds; attack boost active while above fight_seconds
-    last_spawned: str = ""     # item type last spawned for this player (timed spawns alternate)
+    next_item_at: float | None = None  # fight seconds, while this player has no item
 
 
 class GameEngine:
@@ -482,7 +482,7 @@ class GameEngine:
             item_type=item_type,
         )
         self.items[player_id] = item
-        self.players[player_id].last_spawned = item_type
+        self.players[player_id].next_item_at = None
         return item
 
     def spawn_health(self, player_id):
@@ -492,11 +492,30 @@ class GameEngine:
         return self.spawn_item(player_id, "ATTACK_MULTIPLIER")
 
     def next_spawn_type(self, player_id):
-        """Timed spawns: health when below 50 HP, otherwise alternate types."""
+        """Prefer health below 50 HP; otherwise draw a type for this spawn."""
         player = self.players[player_id]
         if player.health < SPAWN_PREFER_HEALTH_BELOW:
             return "HEALTH"
-        return "ATTACK_MULTIPLIER" if player.last_spawned == "HEALTH" else "HEALTH"
+        return self.rng.choice(ITEM_TYPES)
+
+    def spawn_due_items(self, player_ids, seconds):
+        """Schedule each player's next item on the fight clock, with ±20% jitter."""
+        self.advance()
+        if self.phase != "FIGHTING" or self.tutorial:
+            return []
+        spawned = []
+        for player_id in player_ids:
+            if player_id in self.items:
+                continue
+            player = self.players[player_id]
+            if player.next_item_at is None:
+                player.next_item_at = self.fight_seconds + self.rng.uniform(
+                    0.8 * seconds, 1.2 * seconds)
+            if self.fight_seconds >= player.next_item_at:
+                item = self.spawn_item(player_id, self.next_spawn_type(player_id))
+                if item is not None:
+                    spawned.append(item)
+        return spawned
 
     def _sidelined(self, player_id):
         """The other player during someone's tutorial: their actions do nothing."""
