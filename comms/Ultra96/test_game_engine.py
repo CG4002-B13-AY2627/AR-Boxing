@@ -7,7 +7,8 @@ import unittest
 
 from game_engine import (
     ANIMATION_SECONDS, BASE_DAMAGE, BLOCK_DAMAGE_MULTIPLIER, GameEngine,
-    GUARD_COST, GUARD_SECONDS, STAMINA_COST, STAMINA_REGEN_PER_SECOND,
+    GUARD_COST, GUARD_SECONDS, HELD_GUARD_COST_PER_SECOND, HELD_GUARD_SENSOR_TIMEOUT, STAMINA_COST,
+    STAMINA_REGEN_PER_SECOND,
 )
 from visualizer_protocol import PhoneHub
 
@@ -27,6 +28,80 @@ class GameEngineTests(unittest.TestCase):
     def setUp(self):
         self.clock = FakeClock()
         self.game = GameEngine(clock=self.clock)
+
+    def test_ai_guard_holds_with_sensor_data_until_release(self):
+        self.game.start()
+        self.game.note_sensor_pair(1)
+        self.assertTrue(self.game.start_guard(1, held=True))
+        self.assertEqual(self.game.players[1].stamina, 100)
+        for _ in range(20):
+            self.clock.advance(0.25)
+            self.game.note_sensor_pair(1)
+        self.assertTrue(self.game.snapshot()["player_1"]["is_blocking"])
+        self.assertEqual(self.game.resolve_punch(2, "JAB", 1.0, True)[0], "BLOCK")
+        self.assertEqual(self.game.players[1].stamina, 100 - 5 * HELD_GUARD_COST_PER_SECOND)
+        self.assertFalse(self.game.try_attack(1, "JAB"))
+        self.assertTrue(self.game.end_guard(1))
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+
+    def test_ai_guard_exhaustion_releases_and_recovers_without_rearming(self):
+        self.game.start()
+        player = self.game.players[2]
+        self.game.note_sensor_pair(2)
+        player.stamina = 0
+        self.assertFalse(self.game.start_guard(2, held=True))
+        player.stamina = HELD_GUARD_COST_PER_SECOND / 2
+        self.assertTrue(self.game.start_guard(2, held=True))
+        self.clock.advance(0.25)
+        self.game.note_sensor_pair(2)
+        self.assertEqual(self.game.resolve_punch(1, "JAB", 1.0, True)[0], "BLOCK")
+        self.assertEqual(player.stamina, HELD_GUARD_COST_PER_SECOND / 4)
+        self.clock.advance(0.25)
+        self.game.note_sensor_pair(2)
+        self.assertEqual(self.game.resolve_punch(1, "JAB", 1.0, True)[0], "HIT")
+        self.assertEqual(player.stamina, 0)
+        self.clock.advance(0.25)
+        self.game.note_sensor_pair(2)
+        self.game.advance()
+        self.assertEqual(player.stamina, STAMINA_REGEN_PER_SECOND / 4)
+        self.assertFalse(self.game.snapshot()["player_2"]["is_blocking"])
+
+    def test_disconnect_charges_guard_only_until_disconnect(self):
+        self.game.start()
+        self.game.note_sensor_pair(1)
+        self.assertTrue(self.game.start_guard(1, held=True))
+        self.clock.advance(0.5)
+        self.game.sensor_stream_lost(1)
+        self.assertEqual(self.game.players[1].stamina, 100 - HELD_GUARD_COST_PER_SECOND / 2)
+        self.clock.advance(0.25)
+        self.game.advance()
+        self.assertEqual(self.game.players[1].stamina,
+                         100 - HELD_GUARD_COST_PER_SECOND / 2 + STAMINA_REGEN_PER_SECOND / 4)
+
+    def test_ai_guard_clears_on_stream_loss_and_does_not_revive_with_samples(self):
+        for disconnect in (False, True):
+            with self.subTest(disconnect=disconnect):
+                self.game = GameEngine(clock=self.clock)
+                self.game.start()
+                self.assertFalse(self.game.start_guard(2, held=True))
+                self.game.note_sensor_pair(2)
+                self.assertTrue(self.game.start_guard(2, held=True))
+                if disconnect:
+                    self.game.sensor_stream_lost(2)
+                else:
+                    self.clock.advance(HELD_GUARD_SENSOR_TIMEOUT)
+                self.assertFalse(self.game.snapshot()["player_2"]["is_blocking"])
+                self.game.note_sensor_pair(2)
+                self.assertFalse(self.game.snapshot()["player_2"]["is_blocking"])
+                self.assertTrue(self.game.start_guard(2, held=True))
+
+    def test_keyboard_guard_still_expires_even_with_sensor_data(self):
+        self.game.start()
+        self.assertTrue(self.game.start_guard(1))
+        for _ in range(4):
+            self.clock.advance(GUARD_SECONDS / 4)
+            self.game.note_sensor_pair(1)
+        self.assertFalse(self.game.snapshot()["player_1"]["is_blocking"])
 
     def test_lobby_start_pause_resume_timer_and_round_end(self):
         self.assertEqual(self.game.snapshot()["state"], "LOBBY")
@@ -127,6 +202,28 @@ class CapturingSocket:
 
 
 class GameEngineTransportTests(unittest.IsolatedAsyncioTestCase):
+    async def test_ai_guard_release_is_applied_before_the_following_punch(self):
+        import asyncio
+        from ai_to_visualizer_demo import DEFAULT_ACTION_MAP, FakeAiEvent, send_ai_demo
+
+        clock = FakeClock()
+        engine = GameEngine(clock=clock)
+        engine.start()
+        engine.note_sensor_pair(1)
+        hub = PhoneHub(engine=engine)
+        start = FakeAiEvent("block", 0.0, 0.9, 0.0, "start")
+        self.assertIsNotNone(await send_ai_demo(
+            hub, 0, start, DEFAULT_ACTION_MAP, 1.0, attack_id="hold", held_guard=True))
+        end = FakeAiEvent("block", 0.25, 0.9, 0.0, "end")
+        punch = FakeAiEvent("l_straight", 0.25, 0.9, 1.0, None)
+        release, attack = await asyncio.gather(
+            send_ai_demo(hub, 0, end, DEFAULT_ACTION_MAP, 1.0, 100, "release", held_guard=True),
+            send_ai_demo(hub, 0, punch, DEFAULT_ACTION_MAP, 1.0, 100, "punch", held_guard=True),
+        )
+        self.assertIsNotNone(release)
+        self.assertEqual(attack["punch"], "JAB")
+        self.assertFalse(engine.snapshot()["player_1"]["is_blocking"])
+
     async def test_guard_and_round_transitions_match_phone_schemas(self):
         try:
             from jsonschema import Draft202012Validator

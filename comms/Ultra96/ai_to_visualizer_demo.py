@@ -68,7 +68,7 @@ class AttackIds:
 
 
 async def send_ai_demo(hub, player, event, action_map, demo_intensity,
-                       response_timeout_ms=750, attack_id=None):
+                       response_timeout_ms=750, attack_id=None, *, held_guard=False):
     """Map one AI event into the hub's authoritative request/resolve path."""
     if player not in (0, 1):
         raise ValueError("AI player must be 0 or 1")
@@ -118,7 +118,7 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
         duplicate = attack_id in hub.guard_actions
         final = await hub.request_guard(
             player + 1, active=event.edge == "start",
-            confidence=float(event.confidence), guard_id=attack_id)
+            confidence=float(event.confidence), guard_id=attack_id, held=held_guard)
         if final is None:
             print(f"[AI GUARD REJECTED] P{player + 1} {event.edge} id={attack_id}", flush=True)
         else:

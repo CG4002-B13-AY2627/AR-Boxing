@@ -576,9 +576,9 @@ class PhoneHub:
         return await asyncio.shield(result_future)
 
     async def request_guard(self, source_player, active=True, confidence=1.0,
-                            guard_id=None):
+                            guard_id=None, *, held=False):
         """Accept a classified server-side guard start/end once per stable ID."""
-        if (source_player not in (1, 2) or type(active) is not bool or
+        if (source_player not in (1, 2) or type(active) is not bool or type(held) is not bool or
                 type(confidence) not in (int, float) or
                 not math.isfinite(confidence) or not 0 <= confidence <= 1 or
                 (guard_id is not None and
@@ -586,18 +586,19 @@ class PhoneHub:
             raise ValueError("invalid guard request")
         if guard_id is None:
             guard_id = "guard-" + uuid.uuid4().hex
+        parameters = (source_player, active, confidence, held)
         async with self.broadcast_lock:
             existing = self.guard_actions.get(guard_id)
             if existing is not None:
-                if existing[:3] != (source_player, active, confidence):
+                if existing[:4] != parameters:
                     raise ValueError("conflicting duplicate guard ID")
-                return existing[3]
+                return existing[4]
             if len(self.guard_actions) >= MAX_ATTACK_RECORDS:
                 raise RuntimeError("guard ledger full; start a new match")
-            accepted = (self.engine.start_guard(source_player) if active else
+            accepted = (self.engine.start_guard(source_player, held=held) if active else
                         self.engine.end_guard(source_player))
             if not accepted:
-                self.guard_actions[guard_id] = (source_player, active, confidence, None)
+                self.guard_actions[guard_id] = (*parameters, None)
                 await self._broadcast_transitions_locked()
                 await self.broadcast(self.state())
                 return None
@@ -612,11 +613,16 @@ class PhoneHub:
                 "outcome": "NONE", "damage": 0.0,
                 "attack_id": guard_id,
             }
-            self.guard_actions[guard_id] = (source_player, active, confidence, event)
+            self.guard_actions[guard_id] = (*parameters, event)
             await self.broadcast(event)
             await self._broadcast_transitions_locked()
             await self.broadcast(self.state())
         return event
+
+    async def release_held_guard(self, player_id):
+        async with self.broadcast_lock:
+            if self.engine.release_held_guard(player_id):
+                await self.broadcast(self.state())
 
     async def request_weave(self, source_player, confidence=1.0, weave_id=None):
         """Accept a classified weave once per stable ID (CG4002-Viz protocol.md "Weave").

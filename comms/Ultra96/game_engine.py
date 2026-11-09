@@ -28,6 +28,8 @@ ANIMATION_SECONDS = {
 STAMINA_REGEN_PER_SECOND = 12.0
 GUARD_COST = 8.0
 GUARD_SECONDS = 1.0
+HELD_GUARD_COST_PER_SECOND = GUARD_COST / GUARD_SECONDS
+HELD_GUARD_SENSOR_TIMEOUT = 1.0
 BLOCK_DAMAGE_MULTIPLIER = 0.3
 # Weave (CG4002-Viz docs/protocol.md "Weave", docs/weave-plan.md): invincible to
 # punches for WEAVE_SECONDS at a high stamina cost. No regeneration while
@@ -97,6 +99,8 @@ class Player:
     stamina: float = 100.0
     busy_until: float = 0.0
     guard_until: float = 0.0
+    held_guard: bool = False
+    sensor_pair_at: float | None = None
     weave_until: float = 0.0            # clock time; invincible to punches before it
     weave_cooldown_until: float = 0.0   # clock time; no new weave before it
     connected: bool = False
@@ -197,6 +201,7 @@ class GameEngine:
         self.practice_due = None       # a bag punch never lands across a pause
         for player in self.players.values():
             player.guard_until = 0.0
+            player.held_guard = False
             player.busy_until = 0.0
             player.weave_until = 0.0
             player.weave_cooldown_until = 0.0
@@ -417,12 +422,21 @@ class GameEngine:
                       min(elapsed, self.round_time))
             started = now - elapsed
             for player in self.players.values():
-                # No regeneration for the part of this step spent weaving.
                 weaving = max(0.0, min(now, player.weave_until) - started)
+                guarding = (max(0.0, min(started + active, player.guard_until) - started)
+                            if player.held_guard else 0.0)
+                time_to_empty = player.stamina / HELD_GUARD_COST_PER_SECOND
+                drain_time = min(guarding, time_to_empty)
+                exhausted = player.held_guard and guarding >= time_to_empty
+                # A held guard drains instead of regenerating. If it ends
+                # mid-step, regeneration resumes for the remainder.
+                recovery_time = max(0.0, active - weaving - drain_time)
                 player.stamina = round(min(100.0, player.stamina +
-                                           max(0.0, active - weaving) * STAMINA_REGEN_PER_SECOND), 2)
-                if now >= player.guard_until:
+                                           recovery_time * STAMINA_REGEN_PER_SECOND -
+                                           drain_time * HELD_GUARD_COST_PER_SECOND), 2)
+                if now >= player.guard_until or exhausted:
                     player.guard_until = 0.0
+                    player.held_guard = False
                 if now >= player.weave_until:
                     player.weave_until = 0.0
             self.fight_seconds += active
@@ -559,6 +573,7 @@ class GameEngine:
         self.round_end_at = now + ROUND_END_SECONDS
         for player in self.players.values():
             player.guard_until = 0.0
+            player.held_guard = False
             player.weave_until = 0.0
             player.weave_cooldown_until = 0.0
         self.transitions.append("ROUND_END")
@@ -578,18 +593,50 @@ class GameEngine:
         player.busy_until = now + ANIMATION_SECONDS[punch]
         return True
 
-    def start_guard(self, player_id):
+    def note_sensor_pair(self, player_id):
+        """Renew an AI guard only while paired data continues arriving."""
+        player = self.players[player_id]
+        now = self.clock()
+        player.sensor_pair_at = now
+        if player.held_guard and player.guard_until > now:
+            player.guard_until = now + HELD_GUARD_SENSOR_TIMEOUT
+
+    def release_held_guard(self, player_id):
+        """Clear an AI guard when its postprocessor loses the held pose."""
+        player = self.players[player_id]
+        if not player.held_guard:
+            return False
+        self.advance()
+        player.held_guard = False
+        player.guard_until = 0.0
+        return True
+
+    def sensor_stream_lost(self, player_id):
+        self.players[player_id].sensor_pair_at = None
+        self.release_held_guard(player_id)
+
+    def start_guard(self, player_id, *, held=False):
         if player_id not in self.players:
             raise ValueError("invalid player")
         self.advance()
         player = self.players[player_id]
         now = self.clock()
         if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
-                now < player.guard_until or now < player.weave_until or
-                player.stamina < GUARD_COST):
+                now < player.guard_until or now < player.weave_until):
             return False
-        player.stamina = round(player.stamina - GUARD_COST, 2)
-        player.guard_until = now + GUARD_SECONDS
+        deadline = now + GUARD_SECONDS
+        if held:
+            if player.stamina <= 0 or player.sensor_pair_at is None:
+                return False
+            deadline = player.sensor_pair_at + HELD_GUARD_SENSOR_TIMEOUT
+            if deadline <= now:
+                return False
+        else:
+            if player.stamina < GUARD_COST:
+                return False
+            player.stamina = round(player.stamina - GUARD_COST, 2)
+        player.held_guard = held
+        player.guard_until = deadline
         return True
 
     def start_weave(self, player_id):
@@ -609,6 +656,7 @@ class GameEngine:
             return False
         player.stamina = round(player.stamina - WEAVE_COST, 2)
         player.guard_until = 0.0
+        player.held_guard = False
         player.weave_until = now + WEAVE_SECONDS
         player.weave_cooldown_until = player.weave_until + WEAVE_COOLDOWN_SECONDS
         return True
@@ -638,6 +686,7 @@ class GameEngine:
         if self.phase != "FIGHTING" or player.guard_until <= self.clock():
             return False
         player.guard_until = 0.0
+        player.held_guard = False
         return True
 
     def resolve_punch(self, source_player, punch, intensity, tracked):

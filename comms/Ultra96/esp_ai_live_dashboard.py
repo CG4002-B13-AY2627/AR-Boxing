@@ -90,6 +90,7 @@ class Pipeline:
         self.thread = threading.Thread(target=self.worker, name='single-FPGA-owner', daemon=True)
 
     def offer(self, player, token, stamp, counts):
+        self.hub.engine.note_sensor_pair(player)
         item = (time.monotonic(), player, token, stamp, counts)
         if self.queue.full():
             while True:
@@ -103,14 +104,21 @@ class Pipeline:
 
     def publish(self, player, event):
         # Runs only on asyncio loop; observation waits never block acquisition/infer.
-        if len(self.pending) >= 16:
+        # Reset and release must still run when punch observations fill the queue.
+        releases_guard = event is None or (event.action == "block" and event.edge == "end")
+        if len(self.pending) >= 16 and not releases_guard:
             self.counts['event_drops'] += 1
             return
         if self.hub.engine.phase != 'FIGHTING':
             return
-        task = asyncio.create_task(send_ai_demo(
-            self.hub, player-1, event, DEFAULT_ACTION_MAP,
-            self.args.demo_intensity, 750, self.ids.next(player-1)))
+        if event is None:
+            action = self.hub.release_held_guard(player)
+        else:
+            action = send_ai_demo(
+                self.hub, player-1, event, DEFAULT_ACTION_MAP,
+                self.args.demo_intensity, 750, self.ids.next(player-1),
+                held_guard=True)
+        task = asyncio.create_task(action)
         self.pending.add(task)
         def done(result):
             self.pending.discard(result)
@@ -170,6 +178,7 @@ class Pipeline:
                         not .009 <= stamp - previous[1] <= .011):
                     buffers[player].reset()
                     posts[player].reset()
+                    self.loop.call_soon_threadsafe(self.publish, player, None)
                     self.counts['resets'] += 1
                 last[player] = (token, stamp)
                 counts_array = np.asarray(counts, dtype=np.float32)
@@ -274,6 +283,8 @@ class GatewayServer:
                 self.monitor.event(f'ESP session P{player}: {error}')
         finally:
             if player is not None:
+                if self.pipeline is not None:
+                    self.pipeline.hub.engine.sensor_stream_lost(player)
                 if self.feedback.writers.get(player) is writer:
                     self.feedback.writers.pop(player)
                 if self.monitor:
