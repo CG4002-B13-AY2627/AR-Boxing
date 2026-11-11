@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AR Boxing Poster</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800;900&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  /* A1 portrait: 594 x 841 mm. Everything is sized in mm/pt so print is exact. */
+  @page { size: 594mm 841mm; margin: 0; }
+
+  :root {
+    --paper: #F4F1EA;
+    --card: #FFFFFF;
+    --ink: #16171B;
+    --muted: #5C5E63;
+    --rule: #D9D4C8;
+    --night: #14161C;
+    --night-2: #1F232C;
+    --red: #C8232C;
+    --blue: #1F5FA8;
+    --gold: #E7A615;
+    --red-tint: #F8E3E2;
+    --blue-tint: #E1EAF5;
+    --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", sans-serif;
+    --body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #8C8A85;
+    color: var(--ink);
+    font-family: var(--body);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @media print { body { background: var(--paper); } }
+
+  .poster {
+    width: 594mm;
+    height: 841mm;
+    margin: 0 auto;
+    background: var(--paper);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    font-size: 21pt;
+    line-height: 1.35;
+  }
+
+  /* ---------------- header ---------------- */
+  header {
+    background: var(--night);
+    color: #F4F1EA;
+    padding: 24mm 30mm 18mm;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 16mm;
+  }
+  header::after {            /* red/blue corner bar: the two corners of a ring */
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 5mm;
+    background: linear-gradient(90deg, var(--red) 0 50%, var(--blue) 50% 100%);
+  }
+  .kicker {
+    display: flex;
+    gap: 12mm;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 17pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 4mm;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 205pt;
+    line-height: 0.8;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  h1 .r { color: var(--red); }
+  h1 .b { color: #5B9BE6; }
+  .tagline {
+    font-size: 32pt;
+    font-weight: 500;
+    line-height: 1.2;
+    margin: 7mm 0 0;
+    color: #E6E2D8;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(2, 58mm);
+    gap: 5mm;
+    margin-bottom: 4mm;
+  }
+  .stat {
+    background: var(--night-2);
+    border-top: 2.2mm solid var(--gold);
+    padding: 4mm 5mm 4.5mm;
+  }
+  .stat:nth-child(1) { border-color: var(--red); }
+  .stat:nth-child(4) { border-color: #5B9BE6; }
+  .stat b {
+    display: block;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 62pt;
+    line-height: 0.95;
+  }
+  .stat > span { font-size: 15pt; color: #B8B5AD; line-height: 1.2; display: block; }
+
+  /* ---------------- body ---------------- */
+  main {
+    flex: 1;
+    padding: 13mm 30mm 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12mm;
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6mm;
+    margin: 0 0 5mm;
+  }
+  .sec-head .num {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 17pt;
+    color: var(--red);
+    letter-spacing: 0.1em;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 64pt;
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .sec-head p { margin: 0 0 0 auto; color: var(--muted); font-size: 22pt; }
+
+  /* architecture */
+  .arch {
+    background: var(--card);
+    border: 0.6mm solid var(--rule);
+    padding: 7mm 6.4mm 6mm;
+  }
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 4mm;
+    margin-top: 6mm;
+    padding-top: 6mm;
+    border-top: 0.5mm dashed var(--rule);
+  }
+  .step { display: grid; grid-template-columns: 11mm 1fr; gap: 3mm; align-items: start; }
+  .dot {
+    width: 11mm; height: 11mm; border-radius: 50%;
+    background: var(--gold); color: var(--night);
+    font-family: var(--display); font-weight: 900; font-size: 24pt;
+    display: grid; place-items: center; line-height: 1;
+  }
+  .step b { display: block; font-size: 24pt; line-height: 1.1; }
+  .step > div:not(.dot) > span { display: block; font-size: 18pt; color: var(--muted); line-height: 1.25; margin-top: 1mm; }
+
+  /* subsystem cards */
+  .cards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8mm;
+  }
+  .card {
+    background: var(--card);
+    border: 0.6mm solid var(--rule);
+    border-left: 3mm solid var(--ink);
+    padding: 7mm 10mm 7mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .card.hw   { border-left-color: var(--red); }
+  .card.comm { border-left-color: #0E8C82; }
+  .card.ai   { border-left-color: #DD6B20; }
+  .card.viz  { border-left-color: var(--blue); }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4mm; }
+  h3 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 46pt;
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .tag {
+    font-family: var(--mono);
+    font-size: 13pt;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .role { font-size: 23pt; font-weight: 600; margin: 3.5mm 0 4mm; line-height: 1.2; }
+  .card ul { margin: 0; padding: 0; list-style: none; }
+  .card li {
+    position: relative;
+    padding-left: 7mm;
+    margin: 0 0 2.2mm;
+    font-size: 20pt;
+    line-height: 1.3;
+  }
+  .card li::before {
+    content: "";
+    position: absolute; left: 0; top: 0.5em;
+    width: 3mm; height: 3mm; background: var(--ink);
+  }
+  .card.hw li::before   { background: var(--red); }
+  .card.comm li::before { background: #0E8C82; }
+  .card.ai li::before   { background: #DD6B20; }
+  .card.viz li::before  { background: var(--blue); }
+  .why {
+    margin-top: auto;
+    padding: 3.5mm 5mm;
+    background: var(--paper);
+    font-size: 19pt;
+    line-height: 1.3;
+  }
+  .why b {
+    font-family: var(--mono);
+    font-size: 14pt;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-right: 2mm;
+  }
+  .card ul + .why { margin-top: 4mm; }
+
+  /* use cases */
+  .uses {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 6mm;
+  }
+  .use {
+    background: var(--night);
+    color: #EDEAE2;
+    padding: 7mm 7mm 7.5mm;
+    display: flex;
+    flex-direction: column;
+    gap: 2.5mm;
+  }
+  .use svg { width: 17mm; height: 17mm; }
+  .use b { font-family: var(--display); font-weight: 800; font-size: 38pt; line-height: 1; text-transform: uppercase; }
+  .use > span { font-size: 19.5pt; line-height: 1.28; color: #BDB9B0; }
+
+  footer {
+    margin-top: auto;
+    padding: 7mm 30mm 9mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 14pt;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  footer .bar { display: flex; gap: 0; }
+  footer .bar i { width: 16mm; height: 3mm; display: block; }
+
+  /* ---------------- LaTeX (KaTeX) ---------------- */
+  .katex { font-size: 1.06em; }
+  .stat > b .katex { font-size: 0.6em; }
+  .stat b { white-space: nowrap; }
+  .dot .katex { font-size: 1em; font-weight: 700; } .badge .katex { font-size: 0.95em; }
+
+  /* ---------------- diagram: SVG shapes + HTML labels on a 1 unit = 1 mm grid ---------------- */
+  .dia { position: relative; width: 520mm; height: 178mm; }
+  .dia svg { position: absolute; left: 0; top: 0; width: 520mm; height: 178mm; }
+  .dia .t {
+    position: absolute;
+    font-size: 5.2mm;
+    line-height: 8mm;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .dia .t b { display: block; color: var(--ink); font-size: 6.4mm; }
+  .dia .m {
+    position: absolute;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 5mm;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .dia .ps { line-height: 9mm; color: var(--ink); font-size: 5.4mm; }
+  .dia .eng { line-height: 9.3mm; color: #C9C5BC; }
+  .dia .eng b { color: #fff; font-size: 6.2mm; }
+  .dia .small { font-size: 4.6mm; line-height: 6.5mm; }
+  .dia .ctr { text-align: center; }
+  .badge {
+    position: absolute;
+    width: 12mm; height: 12mm; margin: -6mm 0 0 -6mm;
+    border-radius: 50%;
+    background: var(--gold); color: var(--night);
+    display: grid; place-items: center;
+    font-size: 7.5mm; font-weight: 700; line-height: 1;
+  }
+
+  /* AI card: layer-by-layer architecture */
+  .net b { display: block; margin-bottom: 2.5mm; }
+  .layers { display: flex; align-items: stretch; gap: 1.2mm; }
+  .layer {
+    flex: 1 1 0;
+    background: #FCEBDD;
+    border: 0.5mm solid #F2C29C;
+    padding: 1.6mm 1mm 1.8mm;
+    display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    text-align: center;
+    min-width: 0;
+  }
+  .layer.in { background: #fff; border-color: #F2C29C; }
+  .layer.out { background: #DD6B20; border-color: #DD6B20; color: #fff; }
+  .layer .ln { font-family: var(--mono); font-size: 10.5pt; font-weight: 600; letter-spacing: 0.02em; color: #A4480F; white-space: nowrap; }
+  .layer.out .ln { color: #FFF1E6; }
+  .layer .ls { font-size: 17pt; line-height: 1.2; margin-top: 1mm; white-space: nowrap; }
+  .layer .ln .katex { font-size: 1em; }
+  .arr { align-self: center; font-size: 15pt; color: var(--muted); }
+  .cap { margin-top: 2.5mm; font-size: 14.5pt; color: var(--muted); line-height: 1.3; }
+
+  /* every Design box: same height, label on its own line */
+  .why { min-height: 44mm; display: flex; flex-direction: column; justify-content: flex-start; }
+  .why > b { display: block; margin: 0 0 2.5mm; }
+  /* recover the vertical space the taller boxes use */
+  header { padding-top: 18mm; padding-bottom: 14mm; }
+  main { padding-top: 10mm; gap: 9mm; }
+  .sec-head { margin-bottom: 4mm; }
+  .role { margin: 3mm 0 3.5mm; }
+</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [{left: '$', right: '$', display: false}], throwOnError: false});"></script>
+</head>
+<body>
+<div class="poster">
+
+  <!-- ================= HEADER ================= -->
+  <header>
+    <div>
+      <p class="kicker"><span>CG4002</span><span>Group B13</span><span>Two-player AR boxing</span></p>
+      <h1><span class="r">AR</span> <span class="b">Boxing</span></h1>
+      <p class="tagline">Throw real punches. Land them in augmented reality.<br>Players never touch. The system decides every hit.</p>
+    </div>
+    <div class="stats">
+      <div class="stat"><b>$\mathbf{6}$</b><span>moves recognised, either hand</span></div>
+      <div class="stat"><b>$\mathbf{100}\,\textbf{Hz}$</b><span>$4$ IMUs streaming, $2$ per player</span></div>
+      <div class="stat"><b>$\mathbf{5}\textbf{-bit}$</b><span>CNN running on the Ultra96 FPGA</span></div>
+      <div class="stat"><b>$\boldsymbol{{\le}\,50}\,\textbf{ms}$</b><span>inference latency budget</span></div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= ARCHITECTURE ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">01</span>
+        <h2>The life of a punch</h2>
+        <p>From glove to phone in five steps.</p>
+      </div>
+      <div class="arch">
+        <div class="dia" role="img" aria-label="System architecture">
+          <svg viewBox="0 0 520 178" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+              <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
+              <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C8232C"/></marker>
+            </defs>
+            <!-- wearables -->
+            <rect x="0" y="12" width="112" height="134" fill="#F8E3E2" stroke="#C8232C" stroke-width="0.8"/>
+            <rect x="6" y="30" width="100" height="40" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+            <line x1="56" y1="71" x2="56" y2="91" stroke="#16171B" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ah)"/>
+            <rect x="6" y="92" width="100" height="48" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+            <!-- glove <-> Ultra96 -->
+            <line x1="106" y1="112" x2="164" y2="112" stroke="#16171B" stroke-width="1.1" marker-end="url(#ah)"/>
+            <line x1="164" y1="134" x2="108" y2="134" stroke="#C8232C" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ahr)"/>
+            <!-- Ultra96 -->
+            <rect x="166" y="12" width="210" height="134" fill="#F4F1EA" stroke="#16171B" stroke-width="0.9"/>
+            <rect x="172" y="20" width="96" height="58" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+            <rect x="274" y="20" width="96" height="58" fill="#FCEBDD" stroke="#DD6B20" stroke-width="0.8"/>
+            <line x1="268" y1="43" x2="273" y2="43" stroke="#16171B" stroke-width="0.8" marker-end="url(#ah)"/>
+            <line x1="274" y1="55" x2="269" y2="55" stroke="#16171B" stroke-width="0.8" marker-end="url(#ah)"/>
+            <rect x="172" y="88" width="198" height="52" fill="#16171B"/>
+            <line x1="220" y1="78" x2="220" y2="87" stroke="#16171B" stroke-width="1" marker-end="url(#ah)"/>
+            <!-- Ultra96 <-> laptop <-> phones (WSS, full duplex) -->
+            <line x1="371" y1="101" x2="380" y2="101" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <rect x="381" y="90" width="38" height="22" rx="2" fill="#fff" stroke="#5C5E63" stroke-width="0.5" stroke-dasharray="1.5 1"/>
+            <line x1="412" y1="89" x2="427" y2="58" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <line x1="412" y1="113" x2="427" y2="124" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <!-- phones -->
+            <rect x="428" y="16" width="92" height="56" rx="6" fill="#fff" stroke="#C8232C" stroke-width="1.2"/>
+            <rect x="428" y="92" width="92" height="56" rx="6" fill="#fff" stroke="#1F5FA8" stroke-width="1.2"/>
+          </svg>
+
+          <!-- column labels -->
+          <div class="m" style="left:0; top:0">Hardware</div>
+          <div class="m" style="left:166mm; top:0">AI and game engine on Ultra96</div>
+          <div class="m" style="left:428mm; top:0">Visualizer</div>
+
+          <!-- wearables -->
+          <div class="t" style="left:6mm; top:14mm"><b style="color:var(--red); font-size:6.6mm">Gloves $\times\,2$ per player</b></div>
+          <div class="t" style="left:12mm; top:32mm"><b>Left glove</b>MPU6050 IMU, accel and gyro<br>FireBeetle ESP32<br>$100\,\text{Hz}$ sampling</div>
+          <div class="m" style="left:60mm; top:78mm; color:var(--ink)">ESP-NOW</div>
+          <div class="t" style="left:12mm; top:94mm"><b>Right glove = gateway</b>IMU, ESP32, Wi-Fi<br>Forwards both gloves&rsquo; samples<br>Vibration motor (haptics)</div>
+
+          <!-- links to Ultra96 -->
+          <div class="m" style="left:116mm; top:100mm; color:var(--ink)">TLS over TCP</div>
+          <div class="t small" style="left:116mm; top:114mm">binary packets,<br>heartbeat</div>
+          <div class="t small" style="left:116mm; top:136mm; color:var(--red); font-weight:600">ACTUATE: vibrate</div>
+
+          <!-- Ultra96 -->
+          <div class="t ps" style="left:178mm; top:22mm"><span class="m" style="position:static">PS: ARM CPU</span><br>Align left and right by time<br>$320\,\text{ms}$ sliding window<br>Normalise $\to$ integers<br>Debounce $\to$ one action</div>
+          <div class="t" style="left:280mm; top:22mm; line-height:8.5mm"><span class="m" style="position:static; color:#DD6B20">PL: FPGA</span><b style="font-size:6.6mm; line-height:8mm">1D-CNN<br>accelerator</b>$5$-bit weights, HLS<br>matches training bit for bit</div>
+          <div class="t eng" style="left:179mm; top:91mm"><span class="m" style="position:static; color:var(--gold)">Game engine: decides every outcome</span><b>Health, stamina, guard, round timer</b>Base damage: jab $5$, cross $7$, hook $10$, uppercut $15$<br>Blocking cuts damage to $30\%$, rounds last $90\,\text{s}$</div>
+
+          <!-- laptop + WSS -->
+          <div class="t small ctr" style="left:381mm; top:93mm; width:38mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
+          <div class="m ctr" style="left:381mm; top:116mm; width:38mm; color:var(--ink)">WSS</div>
+
+          <!-- phones -->
+          <div class="t" style="left:436mm; top:19mm; line-height:7.6mm"><b style="color:var(--red); font-size:6.6mm">Player $\mathbf{1}$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
+          <div class="t" style="left:436mm; top:95mm; line-height:7.6mm"><b style="color:var(--blue); font-size:6.6mm">Player $\mathbf{2}$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
+
+          <!-- step badges -->
+          <div class="badge" style="left:140mm; top:88mm">$1$</div>
+          <div class="badge" style="left:322mm; top:83mm">$2$</div>
+          <div class="badge" style="left:404mm; top:66mm">$3$</div>
+          <div class="badge" style="left:358mm; top:146mm">$4$</div>
+          <div class="badge" style="left:474mm; top:82mm">$5$</div>
+
+          <div class="t ctr" style="left:0; top:160mm; width:520mm; font-size:5mm">Each phone tells the Ultra96 whether it can see the opponent, then shows the result. Neither phone can change health or stamina.</div>
+        </div>
+
+        <div class="steps">
+          <div class="step"><div class="dot">$1$</div><div><b>Sense</b><span>Both wrists stream accel and gyro at $100\,\text{Hz}$</span></div></div>
+          <div class="step"><div class="dot">$2$</div><div><b>Classify</b><span>FPGA CNN names the move: straight, hook, block&hellip;</span></div></div>
+          <div class="step"><div class="dot">$3$</div><div><b>Verify</b><span>Attacker&rsquo;s phone confirms the opponent is in sight</span></div></div>
+          <div class="step"><div class="dot">$4$</div><div><b>Resolve</b><span>Engine applies guard, stamina and damage</span></div></div>
+          <div class="step"><div class="dot">$5$</div><div><b>Feel</b><span>Hit or block effects and sound on both phones</span></div></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SUBSYSTEMS ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">02</span>
+        <h2>Four subsystems</h2>
+        <p>What each part does.</p>
+      </div>
+      <div class="cards">
+
+        <article class="card hw">
+          <div class="card-top"><h3>Hardware</h3><span class="tag">ESP32, MPU6050</span></div>
+          <p class="role">Two gloves per player and nothing installed in the room.</p>
+          <ul>
+            <li>$6$-axis IMU on each wrist, sampled at a fixed $100\,\text{Hz}$</li>
+            <li>Left glove relays through the right glove over ESP-NOW</li>
+            <li>Vibration motor can be triggered from the Ultra96</li>
+          </ul>
+          <div class="why"><b>Design</b><span>Only the right glove talks to the Ultra96, so each player needs one secure connection.</span></div>
+        </article>
+
+        <article class="card comm">
+          <div class="card-top"><h3>Comms</h3><span class="tag">TLS, WSS, JSON</span></div>
+          <p class="role">Encrypted, self-healing links from glove to phone.</p>
+          <ul>
+            <li>Compact binary glove protocol: handshake, heartbeat, clock sync</li>
+            <li>One full-duplex secure WebSocket per phone</li>
+            <li>Sequence numbers and state snapshots survive drops and reconnects</li>
+          </ul>
+          <div class="why"><b>Design</b><span>Versioned JSON schemas let the Unity and Python sides test against the same contract.</span></div>
+        </article>
+
+        <article class="card ai">
+          <div class="card-top"><h3>AI</h3><span class="tag">Brevitas, HLS, Vivado</span></div>
+          <p class="role">Recognises moves from the glove data, on the FPGA.</p>
+          <ul>
+            <li>Six moves: straight, hook, uppercut, block, weave and pickup</li>
+            <li>Left and right versions of a punch count as one move</li>
+            <li>Looks at $320\,\text{ms}$ of both wrists at a time, with weights stored in $5$ bits</li>
+          </ul>
+          <div class="why net"><b>Design</b>
+            <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12\times32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32\times32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32\times16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64\times16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
+            <div class="cap">Shapes are channels $\times$ time steps. ReLU after both convs and the first fc. $10$ output classes.</div>
+          </div>
+        </article>
+
+        <article class="card viz">
+          <div class="card-top"><h3>Visualizer</h3><span class="tag">Unity 6, ARKit, iOS</span></div>
+          <p class="role">Your opponent, your arena, through your phone camera.</p>
+          <ul>
+            <li>AprilTag finds the opponent and floor detection places the arena</li>
+            <li>Live HUD: health, stamina, timer, connection</li>
+            <li>Gloves, hit and block effects, punch sounds</li>
+          </ul>
+          <div class="why"><b>Design</b><span>The phone only displays the game, so lost tracking cannot change the score.</span></div>
+        </article>
+
+      </div>
+    </section>
+
+    <!-- ================= USE CASES ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">03</span>
+        <h2>Play it</h2>
+        <p>Features beyond punching.</p>
+      </div>
+      <div class="uses">
+        <div class="use">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M6 10v5c3 2.5 9 2.5 12 0v-5"/></svg>
+          <b>Tutorial</b>
+          <span>Shows each move, checks you can do it, then lets you fight.</span>
+        </div>
+        <div class="use">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/><path d="M12 10v5M9.5 12.5h5"/></svg>
+          <b>Pickups</b>
+          <span>Boosts appear on your floor. Grabbing one drops your guard.</span>
+        </div>
+        <div class="use">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h18M7 12V7h10v5"/><path d="M6 12l1 6h10l1-6"/><path d="M12 3v4"/></svg>
+          <b>Strategy</b>
+          <span>Every punch costs stamina, and blocking cuts damage by $70\%$.</span>
+        </div>
+        <div class="use">
+          <svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="3"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg>
+          <b>Headset</b>
+          <span>Slot the phone into a VR headset for hands-free stereo AR.</span>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>CG4002 Computer Engineering Capstone, NUS, AY2026/27 Semester 1</span>
+    <span class="bar"><i style="background:var(--red)"></i><i style="background:#0E8C82"></i><i style="background:#DD6B20"></i><i style="background:var(--blue)"></i></span>
+    <span>Group B13</span>
+  </footer>
+
+</div>
+</body>
+</html>
