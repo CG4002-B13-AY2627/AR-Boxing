@@ -32,7 +32,23 @@ class EnginePickupTests(unittest.TestCase):
         self.assertNotEqual(item.distance_m, other.distance_m)
         positions = {entry["id"]: entry["distance_m"] for entry in engine.snapshot()["active_items"]}
         self.assertEqual(positions, {item.item_id: item.distance_m, other.item_id: other.distance_m})
-        self.assertTrue(all(1.0 <= distance <= 2.5 for distance in positions.values()))
+        self.assertTrue(all(1.0 <= distance <= 2.0 for distance in positions.values()))
+
+    def test_random_spawns_always_match_the_contract(self):
+        # Regression: distances up to 2.5 m broke the contract (max 2.0), and the
+        # owner's phone rejected every MatchState while the item existed.
+        validators = contract_validators()
+        if "match-state" not in validators:
+            self.skipTest("jsonschema or CG4002-Viz contracts unavailable")
+        hub = PhoneHub(engine=fighting())
+        seen = []
+        for _ in range(200):
+            for player in (1, 2):
+                item = hub.engine.spawn_item(player, hub.engine.next_spawn_type(player))
+                seen.append(item.distance_m)
+            validators["match-state"].validate(hub.state())
+            hub.engine.items.clear()
+        self.assertGreater(max(seen), 1.9, "the far end of the range is exercised")
 
     def test_items_match_the_contract(self):
         validators = contract_validators()

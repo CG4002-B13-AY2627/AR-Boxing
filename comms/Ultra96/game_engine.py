@@ -60,7 +60,10 @@ PRACTICE_ITEM_BEARING = -65.0
 HEALTH_ITEM_HEAL = 25.0
 HEALTH_ITEM_SECONDS = 30.0     # of fight time: frozen while paused
 ITEM_MIN_DISTANCE_M = 1.0
-ITEM_MAX_DISTANCE_M = 2.5
+# The protocol-v2 contract allows active_items distance_m 0.5..2.0. A phone
+# rejects any MatchState outside it (the whole snapshot, not just the item),
+# so its owner freezes as "stale" until the item is gone. Keep this <= 2.0.
+ITEM_MAX_DISTANCE_M = 2.0
 PRACTICE_ITEM_DISTANCE_M = 1.0
 HEALTH_ITEM_MAX_BEARING = 65.0
 PICKUP_RADIUS_M = 0.5
