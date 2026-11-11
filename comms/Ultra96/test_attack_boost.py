@@ -139,7 +139,7 @@ class EngineAttackBoostTests(unittest.TestCase):
 
     def test_unknown_item_type_is_refused(self):
         with self.assertRaises(ValueError):
-            fighting().spawn_item(1, "STAMINA")
+            fighting().spawn_item(1, "SHIELD")
 
 
 class SocketAttackBoostTests(unittest.IsolatedAsyncioTestCase):

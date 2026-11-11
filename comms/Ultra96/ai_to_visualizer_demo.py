@@ -320,7 +320,7 @@ class KeyboardInput:
 
 
 KEYS_HELP = ("[KEYS] 1/2 select player | j jab | h hook, u uppercut (P1 left, P2 right) | "
-             "g guard | x end guard | w weave | i spawn health | o spawn attack boost | k pickup | "
+             "g guard | x end guard | w weave | i spawn health | b spawn stamina | o spawn attack boost | k pickup | "
              "p pause | n new match | s state | r retry last ID | ? help | q quit")
 
 
@@ -394,8 +394,9 @@ async def run_keyboard_commands(args, hub, attack_ids, commands):
             kind, player, value = "weave", selected, None
             action_id = attack_ids.next(player - 1)
             last = kind, player, value, action_id
-        elif key in ("i", "o"):
-            item = await hub.spawn_item(selected, "HEALTH" if key == "i" else "ATTACK_MULTIPLIER")
+        elif key in ("i", "b", "o"):
+            item = await hub.spawn_item(selected, {"i": "HEALTH", "b": "STAMINA",
+                                                   "o": "ATTACK_MULTIPLIER"}[key])
             print(f"[ITEM] P{selected} {describe_item(item)} at "
                   f"{item.bearing_degrees:+.0f} deg" if item else
                   f"[ITEM] P{selected}: only while FIGHTING, one item at a time", flush=True)
@@ -464,6 +465,8 @@ async def run_keyboard(args, hub, attack_ids):
 def describe_item(item):
     if item.item_type == "ATTACK_MULTIPLIER":
         return f"attack boost x{item.magnitude:g} {item.item_id}"
+    if item.item_type == "STAMINA":
+        return f"water bottle +{item.magnitude:g} stamina {item.item_id}"
     return f"health pack {item.item_id}"
 
 

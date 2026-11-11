@@ -495,7 +495,8 @@ class PhoneHub:
             attack = item_type == "ATTACK_MULTIPLIER"
             print(f"[PICKUP] P{player_id} {reason}"
                   + ((f" attack x{magnitude:g} for {ATTACK_BOOST_SECONDS:g} s" if attack
-                      else f" +{magnitude:g} HP") if reason == "ACCEPTED" else ""), flush=True)
+                      else f" +{magnitude:g} {'STA' if item_type == 'STAMINA' else 'HP'}")
+                     if reason == "ACCEPTED" else ""), flush=True)
             if socket is not None:
                 await send_bounded(socket, encode(result))
             if reason == "ACCEPTED":
