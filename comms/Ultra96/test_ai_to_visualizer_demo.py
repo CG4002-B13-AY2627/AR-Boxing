@@ -16,7 +16,7 @@ from ai_to_visualizer_demo import (
     AttackIds, DEFAULT_ACTION_MAP, FakeAiEvent, run_fake,
     run_keyboard_commands, send_ai_demo,
 )
-from game_engine import GameEngine
+from game_engine import ACTION_COOLDOWN_SECONDS, GameEngine
 from visualizer_protocol import PhoneHub
 
 
@@ -107,11 +107,11 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
                             event_one = await receive_type(one, "GameEvent")
                             self.assertEqual(event_one, await receive_type(two, "GameEvent"))
                             self.assertEqual(event_one["outcome"], "BLOCK")
-                            self.assertEqual(event_one["damage"], 1.8)
+                            self.assertEqual(event_one["damage"], 0.9)  # hook 6 x 0.6 x block 0.25
                             final_one = await receive_type(one, "MatchState")
                             self.assertEqual(final_one, await receive_type(two, "MatchState"))
-                            self.assertEqual(final_one["player_1"]["health"], 98.2)
-                            self.assertEqual(final_one["player_2"]["stamina"], 85.0)
+                            self.assertEqual(final_one["player_1"]["health"], 99.1)
+                            self.assertEqual(final_one["player_2"]["stamina"], 84.0)
 
                             await commands.put("s")  # force a fresh MatchState
                             snapshot_one = await receive_type(one, "MatchState")
@@ -120,7 +120,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
                             await commands.put("r")  # same attack ID: cached, no broadcast
                             await commands.put("q")
                             await asyncio.wait_for(task, 3)
-                            self.assertEqual(hub.health[1], 98.2)
+                            self.assertEqual(hub.health[1], 99.1)
                             self.assertEqual(hub.event_seq, event_one["seq"])
                             with self.assertRaises(asyncio.TimeoutError):
                                 await asyncio.wait_for(one.recv(), 0.05)
@@ -236,7 +236,7 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
                                 await asyncio.wait_for(one.recv(), 0.03)
                             with self.assertRaises(asyncio.TimeoutError):
                                 await asyncio.wait_for(two.recv(), 0.03)
-                            clock.advance(1.1)
+                            clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         self.assertEqual(len(hub.attacks), 5)
                         await two.close()

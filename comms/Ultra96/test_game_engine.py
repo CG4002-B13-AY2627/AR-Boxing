@@ -6,7 +6,7 @@ from pathlib import Path
 import unittest
 
 from game_engine import (
-    ANIMATION_SECONDS, BASE_DAMAGE, BLOCK_DAMAGE_MULTIPLIER, GameEngine,
+    ACTION_COOLDOWN_SECONDS, ANIMATION_SECONDS, ROUND_SECONDS, BASE_DAMAGE, BLOCK_DAMAGE_MULTIPLIER, GameEngine,
     GUARD_COST, GUARD_SECONDS, HELD_GUARD_COST_PER_SECOND, HELD_GUARD_SENSOR_TIMEOUT, STAMINA_COST,
     STAMINA_REGEN_PER_SECOND,
 )
@@ -107,16 +107,17 @@ class GameEngineTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot()["state"], "LOBBY")
         self.assertFalse(self.game.try_attack(1, "JAB"))
         self.assertTrue(self.game.start())
+        self.assertEqual(ROUND_SECONDS, 180.0)
         self.clock.advance(10)
         self.game.advance()
-        self.assertEqual(self.game.snapshot()["round_time"], 80.0)
+        self.assertEqual(self.game.snapshot()["round_time"], 170.0)
         self.assertTrue(self.game.pause())
         self.clock.advance(30)
         self.game.advance()
-        self.assertEqual(self.game.snapshot()["round_time"], 80.0)
+        self.assertEqual(self.game.snapshot()["round_time"], 170.0)
         self.assertFalse(self.game.try_attack(1, "JAB"))
         self.assertTrue(self.game.resume())
-        self.clock.advance(80)
+        self.clock.advance(170)
         self.game.advance()
         self.assertEqual(self.game.pop_transitions(), ["ROUND_END"])
         self.assertEqual(self.game.snapshot()["round_time"], 0.0)
@@ -126,29 +127,30 @@ class GameEngineTests(unittest.TestCase):
         self.assertEqual(self.game.pop_transitions(), ["MATCH_END"])
         self.assertEqual(self.game.snapshot()["state"], "MATCH_END")
 
-    def test_attack_costs_damage_order_animation_lock_and_regeneration(self):
+    def test_attack_costs_damage_order_cooldown_and_regeneration(self):
         self.game.start()
         for punch in ("JAB", "CROSS", "LEFT_HOOK", "LEFT_UPPERCUT"):
             self.assertTrue(self.game.try_attack(1, punch))
             self.assertFalse(self.game.try_attack(1, punch))
             self.assertEqual(self.game.players[1].busy_until,
                              self.clock.now + ANIMATION_SECONDS[punch])
-            self.clock.advance(ANIMATION_SECONDS[punch])
+            self.clock.advance(ACTION_COOLDOWN_SECONDS)
             self.game.advance()
         self.assertEqual([BASE_DAMAGE[p] for p in
                           ("JAB", "CROSS", "LEFT_HOOK", "LEFT_UPPERCUT")],
-                         [5, 7, 10, 15])
+                         [3, 4, 6, 8])
         self.assertEqual([STAMINA_COST[p] for p in
                           ("JAB", "CROSS", "LEFT_HOOK", "LEFT_UPPERCUT")],
-                         [8, 10, 15, 22])
-        expected = 100 - sum((8, 10, 15, 22)) + sum((0.5, 0.5, 0.7, 1.0)) * 12
+                         [10, 12, 16, 22])
+        self.assertEqual(STAMINA_REGEN_PER_SECOND, 4.0)
+        expected = 100 - sum((10, 12, 16, 22)) + 4 * ACTION_COOLDOWN_SECONDS * 4
         self.assertEqual(self.game.players[1].stamina, round(expected, 2))
         self.game.players[1].stamina = 1.0
         self.assertFalse(self.game.try_attack(1, "JAB"))
-        self.clock.advance(1)
+        self.clock.advance(3)
         self.game.advance()
         self.assertEqual(self.game.players[1].stamina,
-                         1.0 + STAMINA_REGEN_PER_SECOND)
+                         1.0 + 3 * STAMINA_REGEN_PER_SECOND)
         self.assertTrue(self.game.try_attack(1, "JAB"))
 
     def test_guard_fixed_window_reduced_damage_and_early_end(self):
@@ -158,14 +160,15 @@ class GameEngineTests(unittest.TestCase):
         self.assertFalse(self.game.start_guard(2))  # no duration extension
         self.assertFalse(self.game.try_attack(2, "JAB"))
         outcome, damage = self.game.resolve_punch(1, "JAB", 1.0, True)
+        self.assertEqual(BLOCK_DAMAGE_MULTIPLIER, 0.25)
         self.assertEqual((outcome, damage),
-                         ("BLOCK", 5 * BLOCK_DAMAGE_MULTIPLIER))
-        self.assertEqual(self.game.players[2].health, 98.5)
+                         ("BLOCK", 3 * BLOCK_DAMAGE_MULTIPLIER))
+        self.assertEqual(self.game.players[2].health, 99.25)
         self.clock.advance(GUARD_SECONDS)
         self.game.advance()
         self.assertFalse(self.game.snapshot()["player_2"]["is_blocking"])
         outcome, damage = self.game.resolve_punch(1, "JAB", 1.0, True)
-        self.assertEqual((outcome, damage), ("HIT", 5.0))
+        self.assertEqual((outcome, damage), ("HIT", 3.0))
         self.assertTrue(self.game.start_guard(2))
         self.assertTrue(self.game.end_guard(2))
         self.assertFalse(self.game.end_guard(2))
@@ -184,13 +187,62 @@ class GameEngineTests(unittest.TestCase):
         self.assertEqual(self.game.snapshot()["state"], "ROUND_END")
 
     def test_actual_damage_increases_from_jab_to_hook_to_uppercut(self):
-        for punch, expected in (("JAB", 5.0), ("LEFT_HOOK", 10.0),
-                                ("RIGHT_UPPERCUT", 15.0)):
+        for punch, expected in (("JAB", 3.0), ("LEFT_HOOK", 6.0),
+                                ("RIGHT_UPPERCUT", 8.0)):
             game = GameEngine(clock=self.clock)
             game.start()
             self.assertEqual(game.resolve_punch(1, punch, 1.0, True),
                              ("HIT", expected))
             self.assertEqual(game.players[2].health, 100.0 - expected)
+
+    def test_every_move_starts_the_action_cooldown(self):
+        self.game.start()
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 0)
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 1500)
+        self.assertEqual(self.game.snapshot()["player_2"]["action_cooldown_ms"], 0)
+        self.clock.advance(1.0)   # animation over, cooldown not
+        self.assertFalse(self.game.try_attack(1, "JAB"))
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 500)
+        self.clock.advance(0.5)
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 0)
+        self.assertTrue(self.game.try_attack(1, "CROSS"))
+
+    def test_weave_is_allowed_during_the_cooldown(self):
+        self.game.start()
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+        self.clock.advance(1.0)   # past the jab animation, still cooling down
+        self.assertTrue(self.game.start_weave(1))
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 3000)
+
+    def test_guard_is_allowed_during_the_cooldown_and_restarts_it(self):
+        self.game.start()
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+        self.clock.advance(1.0)
+        self.assertTrue(self.game.start_guard(1))   # defending is always allowed
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 1500)
+        self.clock.advance(GUARD_SECONDS)
+        self.assertFalse(self.game.try_attack(1, "JAB"))
+        self.clock.advance(ACTION_COOLDOWN_SECONDS - GUARD_SECONDS)
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+
+    def test_weave_cooldown_lasts_the_whole_weave(self):
+        self.game.start()
+        self.assertTrue(self.game.start_weave(1))
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 3000)
+        self.clock.advance(3.0)
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+
+    def test_pause_and_round_end_clear_the_cooldown(self):
+        self.game.start()
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+        self.assertTrue(self.game.pause())
+        self.assertEqual(self.game.snapshot()["player_1"]["action_cooldown_ms"], 0)
+        self.assertTrue(self.game.resume())
+        self.assertTrue(self.game.try_attack(1, "JAB"))
+        self.game.players[2].health = 1.0
+        self.game.resolve_punch(1, "JAB", 1.0, True)
+        self.assertEqual(self.game.players[1].action_ready_at, 0.0)
 
 
 class CapturingSocket:
@@ -214,6 +266,9 @@ class GameEngineTransportTests(unittest.IsolatedAsyncioTestCase):
         start = FakeAiEvent("block", 0.0, 0.9, 0.0, "start")
         self.assertIsNotNone(await send_ai_demo(
             hub, 0, start, DEFAULT_ACTION_MAP, 1.0, attack_id="hold", held_guard=True))
+        for _ in range(3):   # hold the guard through the cooldown it started
+            clock.advance(ACTION_COOLDOWN_SECONDS / 3)
+            engine.note_sensor_pair(1)
         end = FakeAiEvent("block", 0.25, 0.9, 0.0, "end")
         punch = FakeAiEvent("l_straight", 0.25, 0.9, 1.0, None)
         release, attack = await asyncio.gather(

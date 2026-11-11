@@ -209,21 +209,28 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
 
 ## Rules
 
-| Punch | Damage at intensity 1 | Stamina | Lock |
+Rebalanced 11 November 2026 so a typical match fills the 3-minute round.
+
+| Punch | Damage at intensity 1 | Stamina | Animation lock |
 |---|---:|---:|---:|
-| Jab | 5 | 8 | 0.5 s |
-| Cross | 7 | 10 | 0.5 s |
-| Hook | 10 | 15 | 0.7 s |
-| Uppercut | 15 | 22 | 1.0 s |
+| Jab | 3 | 10 | 0.5 s |
+| Cross | 4 | 12 | 0.5 s |
+| Hook | 6 | 16 | 0.7 s |
+| Uppercut | 8 | 22 | 1.0 s |
 
 - Damage = base x `--demo-intensity` (default 0.6) x the attacker's attack
-  multiplier (1.5 while boosted, else 1), x 0.3 if the target is guarding when
+  multiplier (1.5 while boosted, else 1), x 0.25 if the target is guarding when
   the punch resolves, capped by remaining health. Not tracked
   = miss, no damage. A punch still pending across a pause misses.
-- Stamina regenerates at 12/s while fighting. An attack is refused (no
-  `PunchAttempt`) outside FIGHTING, during the previous animation or guard, or
-  without enough stamina.
-- Round: 90 s (`--round-seconds`). Result at MATCH_END: higher health wins,
+- Stamina regenerates at 4/s while fighting. An attack is refused (no
+  `PunchAttempt`) outside FIGHTING, during the previous animation, guard or
+  action cooldown, or without enough stamina.
+- Action cooldown: every accepted move (punch, guard, weave) starts a 1.5 s
+  cooldown (`ACTION_COOLDOWN_SECONDS`; a weave's lasts until the weave ends).
+  No punch is accepted until it ends; guard and weave stay available. Phones
+  see it as `player_N.action_cooldown_ms` in MatchState and draw a recharge bar.
+  Pause and round end clear it.
+- Round: 180 s (`--round-seconds`). Result at MATCH_END: higher health wins,
   equal is a draw.
 - Pickups: one item per player at a time (health pack or attack boost), 1 to
   2 m away (the contract maximum; farther makes the phone reject every
@@ -244,7 +251,7 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
   timer to 30 s (no stacking). Boosts end at ROUND_END and on a new match.
 - Weave (CG4002-Viz `docs/protocol.md` "Weave"): costs 35 stamina, makes the
   player invincible to punches for 3 s, and stamina does not regenerate while
-  weaving (about 71 stamina in effect). Refused outside FIGHTING, mid-punch,
+  weaving (about 47 stamina in effect). Refused outside FIGHTING, mid-punch,
   while already weaving, during the 4 s cooldown after a weave, or below 35
   stamina. No punching or guarding while weaving; starting one ends a guard.
   A punch that resolves while its target weaves is `DODGE`, 0 damage (the

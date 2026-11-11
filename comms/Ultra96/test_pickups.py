@@ -7,7 +7,7 @@ import unittest
 import websockets
 
 import visualizer_protocol
-from game_engine import GameEngine
+from game_engine import ROUND_SECONDS, GameEngine
 from test_match_flow import FakeClock, contract_validators
 from visualizer_protocol import PhoneHub, decode_pickup_observation
 
@@ -97,7 +97,7 @@ class EnginePickupTests(unittest.TestCase):
     def test_round_end_clears_items(self):
         engine = fighting()
         engine.spawn_health(1)
-        engine.clock.advance(90)
+        engine.clock.advance(ROUND_SECONDS)
         engine.advance()
         self.assertEqual(engine.phase, "ROUND_END")
         self.assertEqual(engine.snapshot()["active_items"], [])

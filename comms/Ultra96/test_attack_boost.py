@@ -9,7 +9,7 @@ from unittest.mock import patch
 import websockets
 
 from ai_to_visualizer_demo import AttackIds, run_keyboard_commands
-from game_engine import (ATTACK_BOOST_SECONDS, ATTACK_ITEM_MULTIPLIER, BASE_DAMAGE,
+from game_engine import (ROUND_SECONDS, ATTACK_BOOST_SECONDS, ATTACK_ITEM_MULTIPLIER, BASE_DAMAGE,
                          BLOCK_DAMAGE_MULTIPLIER, GameEngine)
 from test_match_flow import FakeClock, contract_validators
 from visualizer_protocol import PhoneHub
@@ -97,7 +97,7 @@ class EngineAttackBoostTests(unittest.TestCase):
     def test_round_end_and_new_match_clear_the_boost(self):
         engine = fighting()
         boost(engine)
-        engine.clock.advance(90)
+        engine.clock.advance(ROUND_SECONDS)
         engine.advance()
         self.assertEqual(engine.phase, "ROUND_END")
         self.assertEqual(engine.snapshot()["player_1"]["attack_multiplier"], 1.0)

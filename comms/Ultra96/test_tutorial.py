@@ -6,7 +6,7 @@ no round clock, no KO, and PRACTICE_PUNCH makes the bag punch back.
 
 import unittest
 
-from game_engine import PRACTICE_ITEM_BEARING, PRACTICE_WINDUP_SECONDS, GameEngine
+from game_engine import ROUND_SECONDS, PRACTICE_ITEM_BEARING, PRACTICE_WINDUP_SECONDS, GameEngine
 from test_match_flow import FakeClock, contract_validators, joined, to_fighting
 from visualizer_protocol import PhoneHub
 
@@ -45,7 +45,7 @@ class TutorialEngineTests(unittest.TestCase):
         engine.clock.advance(500)
         engine.advance()
         self.assertEqual(engine.phase, "FIGHTING")
-        self.assertEqual(engine.round_time, 90.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS)
 
     def test_nobody_is_knocked_out(self):
         engine = tutorial_fighting()
@@ -72,8 +72,8 @@ class TutorialEngineTests(unittest.TestCase):
         [result] = engine.pop_practice_results()
         self.assertEqual((result["source_player"], result["target_player"]), (2, 1))
         self.assertEqual((result["punch"], result["outcome"], result["damage"]),
-                         ("JAB", "HIT", 5.0))
-        self.assertEqual(engine.players[1].health, 95.0)
+                         ("JAB", "HIT", 3.0))
+        self.assertEqual(engine.players[1].health, 97.0)
         self.assertTrue(engine.command(1, "PRACTICE_PUNCH"), "free again")
 
     def test_guarding_when_it_lands_blocks(self):
@@ -84,7 +84,7 @@ class TutorialEngineTests(unittest.TestCase):
         engine.clock.advance(0.5)
         engine.advance()
         [result] = engine.pop_practice_results()
-        self.assertEqual((result["outcome"], result["damage"]), ("BLOCK", 1.5))
+        self.assertEqual((result["outcome"], result["damage"]), ("BLOCK", 0.75))
 
     def test_the_bag_cycles_punch_types(self):
         engine = tutorial_fighting()
@@ -181,7 +181,7 @@ class TwoPlayerTutorialTests(unittest.TestCase):
         engine = tutorial_fighting()
         engine.command(1, "EXIT_TUTORIAL")
         to_fighting(engine, players=(1,))
-        engine.clock.advance(90)
+        engine.clock.advance(ROUND_SECONDS)
         engine.advance()
         self.assertEqual(engine.phase, "ROUND_END")
 
@@ -203,7 +203,7 @@ class TutorialItemTests(unittest.TestCase):
         item_id = engine.snapshot()["active_items"][0]["id"]
         self.assertEqual(engine.collect_item(1, item_id, "AVAILABLE", 0.3)[0], "ACCEPTED")
         self.assertEqual(engine.snapshot()["player_1"]["attack_multiplier"], 1.5)
-        self.assertEqual(engine.resolve_punch(1, "JAB", 1.0, tracked=True), ("HIT", 7.5))
+        self.assertEqual(engine.resolve_punch(1, "JAB", 1.0, tracked=True), ("HIT", 4.5))
         self.assertTrue(engine.command(1, "PRACTICE_ITEM"), "the next one can spawn")
 
     def test_only_while_the_tutorial_fights(self):

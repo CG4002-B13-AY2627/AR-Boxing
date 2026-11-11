@@ -10,14 +10,19 @@ import random
 import time
 
 
+# Balance (11 November 2026): tuned so a realistic match lasts about the 3-minute
+# round instead of ~75 s: a 1.5 s action cooldown, slow stamina regeneration
+# and lower damage. A Monte Carlo of one punch every
+# 1.5-3.5 s (75% tracked, 25% of those blocked, intensity 0.6) ends at a median
+# of ~176 s; even a perfect spammer needs ~108 s to knock someone out.
 BASE_DAMAGE = {
-    "JAB": 5.0, "CROSS": 7.0,
-    "LEFT_HOOK": 10.0, "RIGHT_HOOK": 10.0,
-    "LEFT_UPPERCUT": 15.0, "RIGHT_UPPERCUT": 15.0,
+    "JAB": 3.0, "CROSS": 4.0,
+    "LEFT_HOOK": 6.0, "RIGHT_HOOK": 6.0,
+    "LEFT_UPPERCUT": 8.0, "RIGHT_UPPERCUT": 8.0,
 }
 STAMINA_COST = {
-    "JAB": 8.0, "CROSS": 10.0,
-    "LEFT_HOOK": 15.0, "RIGHT_HOOK": 15.0,
+    "JAB": 10.0, "CROSS": 12.0,
+    "LEFT_HOOK": 16.0, "RIGHT_HOOK": 16.0,
     "LEFT_UPPERCUT": 22.0, "RIGHT_UPPERCUT": 22.0,
 }
 ANIMATION_SECONDS = {
@@ -25,22 +30,27 @@ ANIMATION_SECONDS = {
     "LEFT_HOOK": 0.7, "RIGHT_HOOK": 0.7,
     "LEFT_UPPERCUT": 1.0, "RIGHT_UPPERCUT": 1.0,
 }
-STAMINA_REGEN_PER_SECOND = 12.0
+STAMINA_REGEN_PER_SECOND = 4.0
+# Action cooldown (CG4002-Viz docs/protocol.md "Action cooldown"): every accepted
+# move (punch, guard, weave) starts it, and no punch is accepted until it ends.
+# Guard and weave stay available, so a player can always defend. A weave's
+# cooldown lasts at least until the weave ends.
+ACTION_COOLDOWN_SECONDS = 1.5
 GUARD_COST = 8.0
 GUARD_SECONDS = 1.0
 HELD_GUARD_COST_PER_SECOND = GUARD_COST / GUARD_SECONDS
 HELD_GUARD_SENSOR_TIMEOUT = 1.0
-BLOCK_DAMAGE_MULTIPLIER = 0.3
+BLOCK_DAMAGE_MULTIPLIER = 0.25
 # Weave (CG4002-Viz docs/protocol.md "Weave", docs/weave-plan.md): invincible to
 # punches for WEAVE_SECONDS at a high stamina cost. No regeneration while
-# weaving, so it effectively costs about 35 + 36 = 71 stamina. No punching or
+# weaving, so it effectively costs about 35 + 12 = 47 stamina. No punching or
 # guarding during it; starting one ends a guard. Another can start only
 # WEAVE_COOLDOWN_SECONDS after it ends.
 WEAVE_COST = 35.0
 WEAVE_SECONDS = 3.0
 WEAVE_COOLDOWN_SECONDS = 4.0
 WEAVE_MIN_CONFIDENCE = 0.8    # AI confidence needed; a false weave is expensive
-ROUND_SECONDS = 90.0
+ROUND_SECONDS = 180.0
 ROUND_END_SECONDS = 2.0
 COUNTDOWN_SECONDS = 3.0
 TUTORIAL_COMMANDS = frozenset(("START_TUTORIAL", "EXIT_TUTORIAL", "PRACTICE_PUNCH",
@@ -109,6 +119,7 @@ class Player:
     sensor_pair_at: float | None = None
     weave_until: float = 0.0            # clock time; invincible to punches before it
     weave_cooldown_until: float = 0.0   # clock time; no new weave before it
+    action_ready_at: float = 0.0        # clock time; no punch before it
     connected: bool = False
     ready: bool = False   # "done with this phase": READY, CALIBRATED, RESUME or RESTART (Play again)
     boost_until: float = 0.0   # fight seconds; attack boost active while above fight_seconds
@@ -211,6 +222,7 @@ class GameEngine:
             player.busy_until = 0.0
             player.weave_until = 0.0
             player.weave_cooldown_until = 0.0
+            player.action_ready_at = 0.0
         return True
 
     def resume(self):
@@ -603,6 +615,7 @@ class GameEngine:
             player.held_guard = False
             player.weave_until = 0.0
             player.weave_cooldown_until = 0.0
+            player.action_ready_at = 0.0
         self.transitions.append("ROUND_END")
 
     def try_attack(self, player_id, punch):
@@ -614,11 +627,26 @@ class GameEngine:
         now = self.clock()
         if (self.phase != "FIGHTING" or self._sidelined(player_id) or now < player.busy_until or
                 now < player.guard_until or now < player.weave_until or
-                player.stamina < STAMINA_COST[punch]):
+                now < player.action_ready_at or player.stamina < STAMINA_COST[punch]):
             return False
         player.stamina = round(player.stamina - STAMINA_COST[punch], 2)
         player.busy_until = now + ANIMATION_SECONDS[punch]
+        self._start_action_cooldown(player, now)
         return True
+
+    @staticmethod
+    def _start_action_cooldown(player, now, at_least_until=0.0):
+        """An accepted move: no punch for ACTION_COOLDOWN_SECONDS (never shortened)."""
+        player.action_ready_at = max(player.action_ready_at, now + ACTION_COOLDOWN_SECONDS,
+                                     at_least_until)
+
+    def action_cooldown_ms(self, player_id):
+        """Time until this player may punch again (0 when ready or not FIGHTING)."""
+        player = self.players[player_id]
+        now = self.clock()
+        if self.phase != "FIGHTING" or player.action_ready_at <= now:
+            return 0
+        return max(1, min(10000, math.ceil((player.action_ready_at - now) * 1000)))
 
     def note_sensor_pair(self, player_id):
         """Renew an AI guard only while paired data continues arriving."""
@@ -664,13 +692,15 @@ class GameEngine:
             player.stamina = round(player.stamina - GUARD_COST, 2)
         player.held_guard = held
         player.guard_until = deadline
+        self._start_action_cooldown(player, now)
         return True
 
     def start_weave(self, player_id):
         """Charge WEAVE_COST once and make the player invincible to punches for 3 s.
 
         Accepted only while FIGHTING, not mid-punch, not already weaving or in
-        the cooldown, and with enough stamina. Ends an active guard.
+        the weave cooldown, and with enough stamina. Ends an active guard.
+        Starts the action cooldown, which lasts at least as long as the weave.
         """
         if player_id not in self.players:
             raise ValueError("invalid player")
@@ -686,6 +716,7 @@ class GameEngine:
         player.held_guard = False
         player.weave_until = now + WEAVE_SECONDS
         player.weave_cooldown_until = player.weave_until + WEAVE_COOLDOWN_SECONDS
+        self._start_action_cooldown(player, now, player.weave_until)
         return True
 
     def weave_remaining_ms(self, player_id):
@@ -742,6 +773,7 @@ class GameEngine:
                 "attack_multiplier_remaining_ms": self.boost_remaining_ms(player_id),
                 "weave_remaining_ms": self.weave_remaining_ms(player_id),
                 "weave_cooldown_ms": self.weave_cooldown_ms(player_id),
+                "action_cooldown_ms": self.action_cooldown_ms(player_id),
                 "connected": player.connected,
                 "ready": player.ready,
             }

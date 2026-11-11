@@ -45,7 +45,7 @@ class GodModeTests(unittest.TestCase):
         engine = self.fighting()
         self.assertEqual(engine.resolve_punch(1, "JAB", 1, False), ("MISS", 0))
         self.assertTrue(engine.start_guard(2))
-        self.assertEqual(engine.resolve_punch(1, "JAB", 1, True), ("BLOCK", 1.5))
+        self.assertEqual(engine.resolve_punch(1, "JAB", 1, True), ("BLOCK", 0.75))
         self.assertTrue(engine.try_attack(1, "JAB"))
         self.assertFalse(engine.try_attack(1, "JAB"))
         engine.players[1].stamina = 0
@@ -108,8 +108,8 @@ class GodModeTests(unittest.TestCase):
             with self.subTest(ending=ending):
                 engine = self.fighting(enabled=False)
                 if ending == "ko":
-                    engine.players[2].health = 4
-                    self.assertEqual(engine.resolve_punch(1, "JAB", 1, True), ("HIT", 4))
+                    engine.players[2].health = 3
+                    self.assertEqual(engine.resolve_punch(1, "JAB", 1, True), ("HIT", 3))
                     self.assertEqual(engine.players[2].health, 0)
                 else:
                     engine.clock.advance(6)

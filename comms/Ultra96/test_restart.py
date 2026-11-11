@@ -7,7 +7,7 @@ import unittest
 import websockets
 
 import visualizer_protocol
-from game_engine import GameEngine
+from game_engine import ROUND_SECONDS, GameEngine
 from test_match_flow import FakeClock, Phone, contract_validators, joined, to_fighting
 from visualizer_protocol import PhoneHub
 
@@ -15,7 +15,7 @@ from visualizer_protocol import PhoneHub
 def to_match_end(engine):
     to_fighting(engine)
     engine.players[2].health = 40.0
-    engine.clock.advance(90)
+    engine.clock.advance(ROUND_SECONDS)
     engine.advance()
     engine.clock.advance(2)
     engine.advance()
@@ -43,7 +43,7 @@ class EngineRestartTests(unittest.TestCase):
         state = engine.snapshot()
         self.assertEqual((state["player_1"]["health"], state["player_2"]["health"]), (100.0, 100.0))
         self.assertEqual(state["player_1"]["stamina"], 100.0)
-        self.assertEqual(state["round_time"], 90.0)
+        self.assertEqual(state["round_time"], ROUND_SECONDS)
         self.assertEqual(state["match_result"], "PENDING")
         self.assertEqual(state["active_items"], [])
         self.assertTrue(state["player_1"]["connected"] and state["player_2"]["connected"])
@@ -57,7 +57,7 @@ class EngineRestartTests(unittest.TestCase):
         self.assertEqual(engine.phase, "FIGHTING")
         engine.clock.advance(10)
         engine.advance()
-        self.assertEqual(engine.round_time, 80.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS - 10)
 
     def test_a_player_leaving_the_result_does_not_block_the_other(self):
         engine = to_match_end(joined())

@@ -333,7 +333,7 @@ if __name__ == '__main__':
                         help='phone WSS server.crt from make_phone_cert.py (default: --cert)')
     parser.add_argument('--phone-key', type=Path, help='matching phone WSS server.key')
     parser.add_argument('--wait-players', type=int, choices=(1, 2), default=2)
-    parser.add_argument('--round-seconds', type=float, default=90)
+    parser.add_argument('--round-seconds', type=float, default=180)
     parser.add_argument('--god-mode', action='store_true',
                         help='both players keep at least 1 HP; freeze round timer (default: off)')
     parser.add_argument('--spawn-seconds', type=float, default=0.0,

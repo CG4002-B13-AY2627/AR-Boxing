@@ -47,6 +47,7 @@ class HitFeedbackTests(unittest.IsolatedAsyncioTestCase):
         attack_id = f"haptic-{self.serial}"
         # Keep tests independent of animation/stamina timing.
         self.engine.players[player].busy_until = 0
+        self.engine.players[player].action_ready_at = 0
         self.engine.players[player].stamina = 100
         task = asyncio.create_task(self.hub.request_punch(
             player, punch, 0.9, 1.0, response_timeout_ms=100, attack_id=attack_id))
@@ -131,8 +132,8 @@ class HitFeedbackTests(unittest.IsolatedAsyncioTestCase):
                 self.feedback.writers[1] = writer
                 before = self.engine.players[2].health
                 event = await self.resolve()
-                self.assertEqual((event["outcome"], event["damage"]), ("HIT", 5))
-                self.assertEqual(self.engine.players[2].health, before - 5)
+                self.assertEqual((event["outcome"], event["damage"]), ("HIT", 3))
+                self.assertEqual(self.engine.players[2].health, before - 3)
                 self.assertTrue(self.hub.attacks[event["attack_id"]].result_future.done())
 
 
