@@ -261,8 +261,17 @@ class PhoneHub:
     def claim(self, client_id, player_id, websocket):
         # A slot is taken only while a phone holds it. A different client_id may
         # take a free slot (e.g. after an app reinstall); client_id was never auth.
-        if player_id in self.active:
-            return False
+        # The same phone (same client_id) may take over its own slot: its old socket
+        # is stale (app relaunched, or the network moved before TCP noticed), and
+        # refusing it would push the phone into the other player's slot.
+        held = self.active.get(player_id)
+        if held is not None:
+            if self.owners.get(player_id) != client_id:
+                return False
+            transport = getattr(held, "transport", None)
+            if transport is not None:
+                transport.abort()   # its handler sees the close and releases quietly
+            del self.active[player_id]
         previous = next(
             (slot for slot, owner in self.owners.items() if owner == client_id), None
         )

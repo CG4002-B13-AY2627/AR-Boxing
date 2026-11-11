@@ -105,6 +105,37 @@ class SlotTests(unittest.IsolatedAsyncioTestCase):
         finally:
             await again.close()
 
+    async def test_the_same_phone_takes_over_its_own_stale_slot(self):
+        stale, _ = await self.join(1, "phone-a")      # e.g. the app relaunched before TCP noticed
+        fresh, welcome = await self.join(1, "phone-a")
+        try:
+            self.assertEqual(welcome["type"], "ServerWelcome")
+            self.assertEqual(welcome["player_id"], 1, "it keeps its slot, not the opponent's")
+            async def drain_until_closed():
+                while True:
+                    await stale.recv()                     # earlier frames are still buffered
+            with self.assertRaises(websockets.exceptions.ConnectionClosed):
+                await asyncio.wait_for(drain_until_closed(), 3)   # the stale socket is dropped
+            await asyncio.sleep(0.1)                       # let its handler clean up
+            self.assertIs(self.hub.active.get(1), self.hub.ready.get(1))
+            self.assertTrue(self.hub.engine.players[1].connected)
+            self.assertEqual(len(self.hub.active), 1)
+        finally:
+            await fresh.close()
+
+    async def test_another_phone_still_cannot_take_a_held_slot(self):
+        holder, _ = await self.join(1, "phone-a")
+        try:
+            other = await websockets.connect(self.url)
+            await other.send(hello(1, "phone-b"))
+            with self.assertRaises(websockets.exceptions.ConnectionClosed) as closed:
+                await asyncio.wait_for(other.recv(), 3)
+            self.assertEqual(closed.exception.rcvd.code, 1008, "phone B tries P2 next")
+            alive = json.loads(await asyncio.wait_for(holder.recv(), 3))
+            self.assertEqual(alive["type"], "MatchState", "phone A keeps its slot")
+        finally:
+            await holder.close()
+
 
 class PauseEpochTests(unittest.IsolatedAsyncioTestCase):
     async def punch_with_pause(self, pause_in_between):

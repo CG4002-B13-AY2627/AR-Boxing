@@ -25,6 +25,8 @@ same match_id/stream_id and seq counters continue, item IDs never repeat, a
 pending punch can't land and a pending pickup check ends as MATCH_NOT_ACTIVE.
 
 "Both" means `--players` phones connected and every connected phone ready.
+A slot held by a live phone refuses any other phone (close 1008, and the phone
+tries the other slot); the same phone (same client_id) takes its own slot back.
 Ready flags clear on every phase change. A phone that drops mid-fight pauses
 the match; reconnecting never resumes by itself. `--auto-start` restores the old
 behaviour (joining starts the fight) for runs without phones' menus.
