@@ -360,6 +360,37 @@
   }
   .dia .m.sc { font-size: 7mm; color: var(--ink); top: -1.5mm !important; }
   .tag.sc { font-size: 19pt; color: var(--muted); }
+
+  /* ---------------- section 02: cards around the boxer ---------------- */
+  .cards {
+    position: relative;
+    display: grid;
+    grid-template-columns: 195mm 144mm 195mm;
+    grid-template-rows: 125mm 125mm;
+    column-gap: 0;
+    row-gap: 8mm;
+  }
+  .boxer { position: absolute; left: 0; top: 0; width: 534mm; height: 258mm; z-index: 0; }
+  .boxer .callout { font-family: KaTeX_Main, "Latin Modern Roman", serif; font-variant: small-caps; letter-spacing: 0.04em; }
+  .cards > .card { position: relative; z-index: 1; padding: 7mm 8mm; }
+  .card.comm { grid-column: 1; grid-row: 1; }
+  .card.hw   { grid-column: 3; grid-row: 1; }
+  .card.viz  { grid-column: 1; grid-row: 2; }
+  .card.ai   { grid-column: 3; grid-row: 2; }
+  .cards h3 { font-size: 42pt; }
+  .cards .role { font-size: 20pt; margin: 3mm 0 3mm; }
+  .cards .card li { font-size: 18pt; margin-bottom: 1.6mm; }
+  .cards .card ul { margin-bottom: 4mm; }
+  .cards .card ul + .why { margin-top: auto; }
+  .cards .why { font-size: 17pt; min-height: 40mm; padding: 3mm 5mm; }
+  .cards .why > b { font-size: 13pt; margin-bottom: 2mm; }
+  .cards .tag.sc { font-size: 18pt; }
+  .cards .layers { gap: 0.5mm; }
+  .cards .layer { padding: 1.2mm 0.6mm 1.4mm; }
+  .cards .layer .ln { font-size: 8.5pt; letter-spacing: 0; }
+  .cards .layer .ls { font-size: 14pt; }
+  .cards .arr { font-size: 11pt; }
+  .cards .cap { font-size: 13pt; margin-top: 2mm; }
 </style>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
@@ -483,52 +514,131 @@
         <p>What each part does.</p>
       </div>
       <div class="cards">
+        <svg class="boxer" viewBox="0 0 534 258" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <marker id="trailhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#DD6B20"/></marker>
+          </defs>
+          <!-- Visualizer: AR arena ring on the floor -->
+          <ellipse cx="267" cy="246" rx="60" ry="9" fill="#1F5FA8" fill-opacity="0.08" stroke="#1F5FA8" stroke-width="0.9" stroke-dasharray="3 2"/>
+          <!-- legs and shoes -->
+          <g fill="none" stroke="#16171B" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M256,158 L247,202 L241,238" stroke-width="15"/>
+            <path d="M278,158 L287,202 L293,238" stroke-width="15"/>
+            <path d="M242,242 L229,244" stroke-width="8"/>
+            <path d="M292,242 L305,244" stroke-width="8"/>
+          </g>
+          <!-- shorts with waistband -->
+          <path d="M245,124 L289,124 L295,166 L271,166 L267,150 L263,166 L239,166 Z" fill="#16171B"/>
+          <rect x="245" y="124" width="44" height="5" fill="#C8232C"/>
+          <!-- torso, neck, head -->
+          <path d="M239,70 Q239,60 249,60 L285,60 Q295,60 295,70 L289,126 L245,126 Z" fill="#16171B"/>
+          <rect x="261" y="46" width="12" height="16" fill="#16171B"/>
+          <circle cx="267" cy="34" r="16" fill="#16171B"/>
+          <!-- phone VR headset -->
+          <rect x="246" y="26" width="42" height="14" rx="4" fill="#1F5FA8"/>
+          <rect x="250" y="29" width="34" height="2.6" rx="1.3" fill="#9CC2EE"/>
+          <!-- chest AprilTag (white quiet zone, black border, 3x3 data cells) -->
+          <rect x="256" y="89" width="22" height="22" fill="#fff"/>
+          <rect x="259" y="92" width="16" height="16" fill="#16171B"/>
+          <g fill="#fff"><rect x="262.2" y="95.2" width="3.2" height="3.2"/><rect x="268.6" y="95.2" width="3.2" height="3.2"/><rect x="265.4" y="98.4" width="3.2" height="3.2"/><rect x="262.2" y="101.6" width="3.2" height="3.2"/><rect x="265.4" y="101.6" width="3.2" height="3.2"/></g>
+          <!-- arms in a chin guard: paper outline first so the forearms read against the torso -->
+          <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M240,64 L226,112 L256,80" stroke="#F4F1EA" stroke-width="16.5"/>
+            <path d="M294,64 L308,112 L278,80" stroke="#F4F1EA" stroke-width="16.5"/>
+            <path d="M240,64 L226,112 L256,80" stroke="#16171B" stroke-width="12"/>
+            <path d="M294,64 L308,112 L278,80" stroke="#16171B" stroke-width="12"/>
+          </g>
+          <!-- IMU bands on both wrists -->
+          <g stroke="#E7A615" stroke-width="4.5">
+            <line x1="246.8" y1="80.4" x2="256.2" y2="89.2"/>
+            <line x1="277.8" y1="89.2" x2="287.2" y2="80.4"/>
+          </g>
+          <!-- gloves together in front of the chin -->
+          <g stroke="#F4F1EA" stroke-width="1.6">
+            <ellipse cx="256" cy="62" rx="11" ry="13" transform="rotate(-10 256 62)" fill="#C8232C"/>
+            <ellipse cx="278" cy="62" rx="11" ry="13" transform="rotate(10 278 62)" fill="#C8232C"/>
+          </g>
+          <ellipse cx="264" cy="68" rx="3" ry="5.4" transform="rotate(-20 264 68)" fill="#9E1B22"/>
+          <ellipse cx="270" cy="68" rx="3" ry="5.4" transform="rotate(20 270 68)" fill="#9E1B22"/>
+          <!-- Comms: Wi-Fi from the gateway glove (the boxer's right hand, on our left) -->
+          <g fill="none" stroke="#0E8C82" stroke-width="1.6" stroke-linecap="round">
+            <path d="M243.3,56.1 A14 14 0 0 1 249.0,49.9"/>
+            <path d="M237.9,53.5 A20 20 0 0 1 246.0,44.7"/>
+            <path d="M232.4,51.0 A26 26 0 0 1 243.0,39.5"/>
+          </g>
+          <!-- AI: uppercut motion trail rising towards the boxer's left glove -->
+          <g fill="none" stroke="#DD6B20" stroke-linecap="round">
+            <path d="M318,150 Q336,105 310,80" stroke-width="1.6" stroke-dasharray="3 2.2" marker-end="url(#trailhead)"/>
+            <path d="M326,146 Q344,104 318,74" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity="0.6"/>
+            <path d="M312,152 Q327,114 311,94" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity="0.6"/>
+          </g>
 
-        <article class="card hw">
-          <div class="card-top"><h3>Hardware</h3><span class="tag sc">ESP32, MPU6050</span></div>
-          <p class="role">Two gloves per player and nothing installed in the room.</p>
-          <ul>
-            <li>$6$-axis IMU on each wrist, sampled at a fixed $100\,\text{Hz}$</li>
-            <li>Left glove relays through the right glove over ESP-NOW</li>
-            <li>Vibration motor can be triggered from the Ultra96</li>
-          </ul>
-          <div class="why"><b>Design</b><span>Only the right glove talks to the Ultra96, so each player needs one secure connection.</span></div>
-        </article>
+          <!-- pointers from each card -->
+          <g stroke-width="0.8" fill="none">
+            <line x1="195" y1="43" x2="231" y2="43" stroke="#0E8C82"/>
+            <line x1="339" y1="60" x2="291" y2="60" stroke="#C8232C"/>
+            <line x1="195" y1="246" x2="206" y2="246" stroke="#1F5FA8"/>
+            <line x1="339" y1="150" x2="320" y2="150" stroke="#DD6B20"/>
+          </g>
+          <g stroke="#fff" stroke-width="0.7">
+            <circle cx="232" cy="43" r="2.1" fill="#0E8C82"/>
+            <circle cx="290" cy="60" r="2.1" fill="#C8232C"/>
+            <circle cx="207" cy="246" r="2.1" fill="#1F5FA8"/>
+            <circle cx="319" cy="150" r="2.1" fill="#DD6B20"/>
+          </g>
+          <g class="callout" font-size="5.6">
+            <text x="198" y="39" fill="#0E8C82">wi-fi</text>
+            <text x="336" y="56" fill="#C8232C" text-anchor="end">imu glove</text>
+            <text x="198" y="240" fill="#1F5FA8">ar arena</text>
+            <text x="336" y="159" fill="#DD6B20" text-anchor="end">uppercut</text>
+          </g>
+        </svg>
 
         <article class="card comm">
           <div class="card-top"><h3>Comms</h3><span class="tag sc">tls, wss, json</span></div>
-          <p class="role">Encrypted, self-healing links from glove to phone.</p>
+          <p class="role">Encrypted links from glove to phone.</p>
           <ul>
-            <li>Compact binary glove protocol: handshake, heartbeat, clock sync</li>
+            <li>Glove protocol: handshake, heartbeat, clock sync</li>
             <li>One full-duplex secure WebSocket per phone</li>
-            <li>Sequence numbers and state snapshots survive drops and reconnects</li>
+            <li>State snapshots survive drops and reconnects</li>
           </ul>
           <div class="why"><b>Design</b><span>Versioned JSON schemas let the Unity and Python sides test against the same contract.</span></div>
         </article>
 
-        <article class="card ai">
-          <div class="card-top"><h3>AI</h3><span class="tag sc">Brevitas, hls, Vivado</span></div>
-          <p class="role">Recognises moves from the glove data, on the FPGA.</p>
+        <article class="card hw">
+          <div class="card-top"><h3>Hardware</h3><span class="tag sc">ESP32, MPU6050</span></div>
+          <p class="role">Two gloves per player, no room sensors.</p>
           <ul>
-            <li>Six moves: straight, hook, uppercut, block, weave and pickup</li>
-            <li>Left and right versions of a punch count as one move</li>
-            <li>Looks at $320\,\text{ms}$ of both wrists at a time, with weights stored in $5$ bits</li>
+            <li>$6$-axis IMU on each wrist, sampled at $100\,\text{Hz}$</li>
+            <li>Left glove relays via the right glove (ESP-NOW)</li>
+            <li>Vibration motor, triggered by the Ultra96</li>
           </ul>
-          <div class="why net"><b>Design</b>
-            <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12\times32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32\times32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32\times16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64\times16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
-            <div class="cap">Shapes are channels $\times$ time steps. ReLU after both convs and the first fc. $10$ output classes.</div>
-          </div>
+          <div class="why"><b>Design</b><span>Only the right glove talks to the Ultra96, so each player needs one secure connection.</span></div>
         </article>
 
         <article class="card viz">
           <div class="card-top"><h3>Visualizer</h3><span class="tag sc">Unity 6, ARKit, iOS</span></div>
-          <p class="role">Your opponent, your arena, through your phone camera.</p>
+          <p class="role">The fight, seen through your phone.</p>
           <ul>
-            <li>AprilTag finds the opponent and floor detection places the arena</li>
-            <li>Live HUD: health, stamina, timer, connection</li>
-            <li>Gloves, hit and block effects, punch sounds</li>
+            <li>AprilTag on the chest locates the opponent</li>
+            <li>Floor-anchored arena with a live HUD</li>
+            <li>Hit and block effects with punch sounds</li>
           </ul>
           <div class="why"><b>Design</b><span>The phone only displays the game, so lost tracking cannot change the score.</span></div>
+        </article>
+
+        <article class="card ai">
+          <div class="card-top"><h3>AI</h3><span class="tag sc">Brevitas, hls, Vivado</span></div>
+          <p class="role">Recognises six moves on the FPGA.</p>
+          <ul>
+            <li>Straight, hook, uppercut, block, weave, pickup</li>
+            <li>Left and right punches count as one move</li>
+            <li>Reads $320\,\text{ms}$ of both wrists, $5$-bit weights</li>
+          </ul>
+          <div class="why net"><b>Design</b>
+            <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
+            <div class="cap">Channels $\times$ time. ReLU after both convs and the first fc.</div>
+          </div>
         </article>
 
       </div>
