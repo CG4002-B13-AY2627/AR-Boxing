@@ -349,6 +349,17 @@
   main { padding-top: 10mm; gap: 9mm; }
   .sec-head { margin-bottom: 4mm; }
   .role { margin: 3mm 0 3.5mm; }
+
+  /* LaTeX \textsc look: Computer Modern (KaTeX_Main) in small caps */
+  .sc {
+    font-family: KaTeX_Main, "Latin Modern Roman", "CMU Serif", "Times New Roman", serif !important;
+    font-variant: small-caps;
+    text-transform: none !important;
+    font-weight: 400 !important;
+    letter-spacing: 0.04em !important;
+  }
+  .dia .m.sc { font-size: 7mm; color: var(--ink); top: -1.5mm !important; }
+  .tag.sc { font-size: 19pt; color: var(--muted); }
 </style>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
 <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
@@ -386,6 +397,7 @@
           <svg viewBox="0 0 520 178" xmlns="http://www.w3.org/2000/svg">
             <defs>
               <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
+              <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
               <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C8232C"/></marker>
             </defs>
             <!-- wearables -->
@@ -394,8 +406,8 @@
             <line x1="56" y1="71" x2="56" y2="91" stroke="#16171B" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ah)"/>
             <rect x="6" y="92" width="100" height="48" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
             <!-- glove <-> Ultra96 -->
-            <line x1="106" y1="112" x2="164" y2="112" stroke="#16171B" stroke-width="1.1" marker-end="url(#ah)"/>
-            <line x1="164" y1="134" x2="108" y2="134" stroke="#C8232C" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ahr)"/>
+            <line x1="106" y1="109" x2="165" y2="109" stroke="#16171B" stroke-width="1.1" marker-end="url(#ah)"/>
+            <line x1="165" y1="123" x2="108" y2="123" stroke="#C8232C" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ahr)"/>
             <!-- Ultra96 -->
             <rect x="166" y="12" width="210" height="134" fill="#F4F1EA" stroke="#16171B" stroke-width="0.9"/>
             <rect x="172" y="20" width="96" height="58" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
@@ -405,19 +417,19 @@
             <rect x="172" y="88" width="198" height="52" fill="#16171B"/>
             <line x1="220" y1="78" x2="220" y2="87" stroke="#16171B" stroke-width="1" marker-end="url(#ah)"/>
             <!-- Ultra96 <-> laptop <-> phones (WSS, full duplex) -->
-            <line x1="371" y1="101" x2="380" y2="101" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
-            <rect x="381" y="90" width="38" height="22" rx="2" fill="#fff" stroke="#5C5E63" stroke-width="0.5" stroke-dasharray="1.5 1"/>
-            <line x1="412" y1="89" x2="427" y2="58" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
-            <line x1="412" y1="113" x2="427" y2="124" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <line x1="377" y1="82" x2="387.5" y2="82" stroke="#16171B" stroke-width="1.1" marker-start="url(#ahs)" marker-end="url(#ahs)"/>
+            <rect x="388" y="71" width="28" height="22" rx="2" fill="#fff" stroke="#5C5E63" stroke-width="0.5" stroke-dasharray="1.5 1"/>
+            <line x1="413" y1="70" x2="427" y2="57" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+            <line x1="413" y1="94" x2="427" y2="107" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
             <!-- phones -->
             <rect x="428" y="16" width="92" height="56" rx="6" fill="#fff" stroke="#C8232C" stroke-width="1.2"/>
             <rect x="428" y="92" width="92" height="56" rx="6" fill="#fff" stroke="#1F5FA8" stroke-width="1.2"/>
           </svg>
 
           <!-- column labels -->
-          <div class="m" style="left:0; top:0">Hardware</div>
-          <div class="m" style="left:166mm; top:0">AI and game engine on Ultra96</div>
-          <div class="m" style="left:428mm; top:0">Visualizer</div>
+          <div class="m sc" style="left:0; top:0">Hardware</div>
+          <div class="m sc" style="left:166mm; top:0">AI and Game Engine on Ultra96</div>
+          <div class="m sc" style="left:428mm; top:0">Visualizer</div>
 
           <!-- wearables -->
           <div class="t" style="left:6mm; top:14mm"><b style="color:var(--red); font-size:6.6mm">Gloves $\times\,2$ per player</b></div>
@@ -426,9 +438,9 @@
           <div class="t" style="left:12mm; top:94mm"><b>Right glove = gateway</b>IMU, ESP32, Wi-Fi<br>Forwards both gloves&rsquo; samples<br>Vibration motor (haptics)</div>
 
           <!-- links to Ultra96 -->
-          <div class="m" style="left:116mm; top:100mm; color:var(--ink)">TLS over TCP</div>
-          <div class="t small" style="left:116mm; top:114mm">binary packets,<br>heartbeat</div>
-          <div class="t small" style="left:116mm; top:136mm; color:var(--red); font-weight:600">ACTUATE: vibrate</div>
+          <div class="m ctr" style="left:112mm; top:101mm; width:54mm; color:var(--ink)">TLS over TCP</div>
+          <div class="t small ctr" style="left:112mm; top:110.5mm; width:54mm">binary packets</div>
+          <div class="t small ctr" style="left:112mm; top:124.5mm; width:54mm; color:var(--red); font-weight:600">ACTUATE: vibrate</div>
 
           <!-- Ultra96 -->
           <div class="t ps" style="left:178mm; top:22mm"><span class="m" style="position:static">PS: ARM CPU</span><br>Align left and right by time<br>$320\,\text{ms}$ sliding window<br>Normalise $\to$ integers<br>Debounce $\to$ one action</div>
@@ -436,17 +448,17 @@
           <div class="t eng" style="left:179mm; top:91mm"><span class="m" style="position:static; color:var(--gold)">Game engine: decides every outcome</span><b>Health, stamina, guard, round timer</b>Base damage: jab $5$, cross $7$, hook $10$, uppercut $15$<br>Blocking cuts damage to $30\%$, rounds last $90\,\text{s}$</div>
 
           <!-- laptop + WSS -->
-          <div class="t small ctr" style="left:381mm; top:93mm; width:38mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
-          <div class="m ctr" style="left:381mm; top:116mm; width:38mm; color:var(--ink)">WSS</div>
+          <div class="t small ctr" style="left:388mm; top:74mm; width:28mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
+          <div class="m ctr" style="left:388mm; top:95.5mm; width:28mm; color:var(--ink)">WSS</div>
 
           <!-- phones -->
           <div class="t" style="left:436mm; top:19mm; line-height:7.6mm"><b style="color:var(--red); font-size:6.6mm">Player $\mathbf{1}$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
           <div class="t" style="left:436mm; top:95mm; line-height:7.6mm"><b style="color:var(--blue); font-size:6.6mm">Player $\mathbf{2}$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
 
           <!-- step badges -->
-          <div class="badge" style="left:140mm; top:88mm">$1$</div>
+          <div class="badge" style="left:139mm; top:91mm">$1$</div>
           <div class="badge" style="left:322mm; top:83mm">$2$</div>
-          <div class="badge" style="left:404mm; top:66mm">$3$</div>
+          <div class="badge" style="left:402mm; top:61mm">$3$</div>
           <div class="badge" style="left:358mm; top:146mm">$4$</div>
           <div class="badge" style="left:474mm; top:82mm">$5$</div>
 
@@ -473,7 +485,7 @@
       <div class="cards">
 
         <article class="card hw">
-          <div class="card-top"><h3>Hardware</h3><span class="tag">ESP32, MPU6050</span></div>
+          <div class="card-top"><h3>Hardware</h3><span class="tag sc">ESP32, MPU6050</span></div>
           <p class="role">Two gloves per player and nothing installed in the room.</p>
           <ul>
             <li>$6$-axis IMU on each wrist, sampled at a fixed $100\,\text{Hz}$</li>
@@ -484,7 +496,7 @@
         </article>
 
         <article class="card comm">
-          <div class="card-top"><h3>Comms</h3><span class="tag">TLS, WSS, JSON</span></div>
+          <div class="card-top"><h3>Comms</h3><span class="tag sc">tls, wss, json</span></div>
           <p class="role">Encrypted, self-healing links from glove to phone.</p>
           <ul>
             <li>Compact binary glove protocol: handshake, heartbeat, clock sync</li>
@@ -495,7 +507,7 @@
         </article>
 
         <article class="card ai">
-          <div class="card-top"><h3>AI</h3><span class="tag">Brevitas, HLS, Vivado</span></div>
+          <div class="card-top"><h3>AI</h3><span class="tag sc">Brevitas, hls, Vivado</span></div>
           <p class="role">Recognises moves from the glove data, on the FPGA.</p>
           <ul>
             <li>Six moves: straight, hook, uppercut, block, weave and pickup</li>
@@ -509,7 +521,7 @@
         </article>
 
         <article class="card viz">
-          <div class="card-top"><h3>Visualizer</h3><span class="tag">Unity 6, ARKit, iOS</span></div>
+          <div class="card-top"><h3>Visualizer</h3><span class="tag sc">Unity 6, ARKit, iOS</span></div>
           <p class="role">Your opponent, your arena, through your phone camera.</p>
           <ul>
             <li>AprilTag finds the opponent and floor detection places the arena</li>
