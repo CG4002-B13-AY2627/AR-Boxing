@@ -35,8 +35,11 @@ from hit_feedback import HitFeedback, run_haptic_keys
 SYNC_SENSOR = P.SYNC_SENSOR
 
 
-def sensor_si_scale(channel_names):
-    """Raw fw4 MPU-6050 counts -> SI; firmware selects +/-2g, +/-250 dps.
+LEGACY_IMU_SENSITIVITY = (16384.0, 131.0)
+
+
+def sensor_si_scale(channel_names, sensitivity=LEGACY_IMU_SENSITIVITY):
+    """Convert raw fw4 MPU-6050 counts to SI using the selected firmware range.
 
     This is a transport/firmware contract, independent of model normalization.
     Both old and new AI preprocessors receive SI, exactly once.
@@ -45,8 +48,9 @@ def sensor_si_scale(channel_names):
 
     if list(channel_names) != CHANNELS:
         raise RuntimeError('Sensor conversion requires the fw4 l_* then r_* channels')
-    accel = 9.80665 / 16384.0
-    gyro = np.pi / (180.0 * 131.0)
+    accel_lsb_per_g, gyro_lsb_per_dps = sensitivity
+    accel = 9.80665 / accel_lsb_per_g
+    gyro = np.pi / (180.0 * gyro_lsb_per_dps)
     return np.asarray([accel] * 3 + [gyro] * 3 +
                       [accel] * 3 + [gyro] * 3, dtype=np.float32)
 
@@ -149,7 +153,8 @@ class Pipeline:
                 raise RuntimeError('Live contract requires supplied l_* then r_* channels, 12x32, 100Hz stride4')
             build_dir = nn.build_dir if nn is not None else self.args.ai_dir / BUILD_DIR_NAME
             norm_path = validate_model_norm(pre, build_dir, NORM_STATS_NAME)
-            si_scale = sensor_si_scale(pre.channel_names)
+            sensitivity = getattr(self.args, 'imu_sensitivity', LEGACY_IMU_SENSITIVITY)
+            si_scale = sensor_si_scale(pre.channel_names, sensitivity)
             buffers = {p: WindowBuffer(32, 12) for p in (1, 2)}
             posts = {p: Postprocess(pre.desc, pre.channel_names) for p in (1, 2)}
             last = {}
@@ -158,8 +163,9 @@ class Pipeline:
             print('[MODEL]', pre.desc, 'channels=' + ','.join(pre.channel_names), flush=True)
             print('[AI DIR]', self.args.ai_dir.resolve(), flush=True)
             print('[NORM]', norm_path, '(selected build; no local stats copy)', flush=True)
-            print('[SENSOR] fw4 raw counts -> SI on server: 16384 LSB/g, '
-                  '131 LSB/(deg/s); AI receives m/s^2 and rad/s', flush=True)
+            accel_lsb_per_g, gyro_lsb_per_dps = sensitivity
+            print(f'[SENSOR] fw4 raw counts -> SI on server: {accel_lsb_per_g:g} LSB/g, '
+                  f'{gyro_lsb_per_dps:g} LSB/(deg/s); AI receives m/s^2 and rad/s', flush=True)
             print('[MODE]', self.args.mode,
                   'ESP live input; real/simulated sensor mode is configured in ESP firmware',
                   flush=True)
@@ -568,11 +574,13 @@ async def main(args):
         print('[STOP] live server stopped', flush=True)
 
 
-if __name__ == '__main__':
+def run_cli(imu_sensitivity=LEGACY_IMU_SENSITIVITY,
+            default_ai_dir=Path('/home/xilinx/ai/integration-check')):
     here = Path(__file__).resolve().parent
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--mode', choices=('inspect', 'fpga'), default='inspect')
-    parser.add_argument('--ai-dir', type=Path, default=Path('/home/xilinx/ai/integration-check'))
+    parser.add_argument('--ai-dir', type=Path, default=default_ai_dir,
+                        required=default_ai_dir is None)
     parser.add_argument('--cert', type=Path, default=here / 'server.crt')
     parser.add_argument('--key', type=Path, default=here / 'server.key')
     parser.add_argument('--host', default='0.0.0.0')
@@ -594,6 +602,7 @@ if __name__ == '__main__':
     parser.add_argument('--dashboard-port', type=int, default=8890)
     parser.add_argument('--no-dashboard', action='store_true')
     args = parser.parse_args()
+    args.imu_sensitivity = imu_sensitivity
     if bool(args.phone_cert) != bool(args.phone_key):
         parser.error('--phone-cert and --phone-key go together')
     args.ai_dir = args.ai_dir.expanduser().resolve()
@@ -609,3 +618,7 @@ if __name__ == '__main__':
         asyncio.run(main(args))
     except KeyboardInterrupt:
         pass
+
+
+if __name__ == '__main__':
+    run_cli()
