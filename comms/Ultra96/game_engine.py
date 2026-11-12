@@ -73,9 +73,18 @@ PICKUP_RADIUS_M = 0.5
 ATTACK_ITEM_MULTIPLIER = 1.5
 ATTACK_ITEM_SECONDS = 30.0     # how long the uncollected item stays
 ATTACK_BOOST_SECONDS = 30.0    # how long the boost lasts once collected
-# Timed spawns prefer health below this, otherwise alternate types per player.
+# Stamina (water bottle): an instant +40 stamina, capped at 100. Not a regen
+# effect, so effect_duration_ms is 0.
+STAMINA_ITEM_AMOUNT = 40.0
+STAMINA_ITEM_SECONDS = 30.0    # how long the uncollected item stays
+# Timed spawns prefer health below 50 HP, then stamina below 40, otherwise
+# draw a random type per spawn.
 SPAWN_PREFER_HEALTH_BELOW = 50.0
-ITEM_TYPES = ("HEALTH", "ATTACK_MULTIPLIER")
+SPAWN_PREFER_STAMINA_BELOW = 40.0
+ITEM_TYPES = ("HEALTH", "STAMINA", "ATTACK_MULTIPLIER")
+ITEM_ID_PREFIX = {"HEALTH": "health", "STAMINA": "stamina", "ATTACK_MULTIPLIER": "attack"}
+ITEM_SECONDS = {"HEALTH": HEALTH_ITEM_SECONDS, "STAMINA": STAMINA_ITEM_SECONDS,
+                "ATTACK_MULTIPLIER": ATTACK_ITEM_SECONDS}
 
 
 @dataclass
@@ -89,7 +98,11 @@ class PickupItem:
 
     @property
     def magnitude(self):
-        return ATTACK_ITEM_MULTIPLIER if self.item_type == "ATTACK_MULTIPLIER" else HEALTH_ITEM_HEAL
+        if self.item_type == "ATTACK_MULTIPLIER":
+            return ATTACK_ITEM_MULTIPLIER
+        if self.item_type == "STAMINA":
+            return STAMINA_ITEM_AMOUNT
+        return HEALTH_ITEM_HEAL
 
     @property
     def effect_duration_ms(self):
@@ -477,14 +490,13 @@ class GameEngine:
         if self.phase != "FIGHTING" or player_id in self.items or self._sidelined(player_id):
             return None
         self.item_serial += 1
-        attack = item_type == "ATTACK_MULTIPLIER"
         item = PickupItem(
-            item_id=f"{'attack' if attack else 'health'}-p{player_id}-{self.item_serial:04d}",
+            item_id=f"{ITEM_ID_PREFIX[item_type]}-p{player_id}-{self.item_serial:04d}",
             owner=player_id,
             bearing_degrees=round(bearing_degrees if bearing_degrees is not None else
                                   self.rng.uniform(-HEALTH_ITEM_MAX_BEARING,
                                                    HEALTH_ITEM_MAX_BEARING), 1),
-            expires_at=self.fight_seconds + (ATTACK_ITEM_SECONDS if attack else HEALTH_ITEM_SECONDS),
+            expires_at=self.fight_seconds + ITEM_SECONDS[item_type],
             item_type=item_type,
             distance_m=(PRACTICE_ITEM_DISTANCE_M if self.tutorial else
                         round(self.rng.uniform(ITEM_MIN_DISTANCE_M, ITEM_MAX_DISTANCE_M), 2)),
@@ -499,11 +511,16 @@ class GameEngine:
     def spawn_attack(self, player_id):
         return self.spawn_item(player_id, "ATTACK_MULTIPLIER")
 
+    def spawn_stamina(self, player_id):
+        return self.spawn_item(player_id, "STAMINA")
+
     def next_spawn_type(self, player_id):
-        """Prefer health below 50 HP; otherwise draw a type for this spawn."""
+        """Health below 50 HP, else stamina below 40, else a random type."""
         player = self.players[player_id]
         if player.health < SPAWN_PREFER_HEALTH_BELOW:
             return "HEALTH"
+        if player.stamina < SPAWN_PREFER_STAMINA_BELOW:
+            return "STAMINA"
         return self.rng.choice(ITEM_TYPES)
 
     def spawn_due_items(self, player_ids, seconds):
@@ -540,7 +557,9 @@ class GameEngine:
         Only FIGHTING, the player's own live item, AVAILABLE and <= 0.5 m
         succeed; success removes the item and applies it. HEALTH heals (capped
         at 100, even at full health; magnitude is the HP actually gained).
-        ATTACK_MULTIPLIER (re)starts a 30 s boost (magnitude is the multiplier).
+        STAMINA adds 40 stamina (capped at 100, even when full; magnitude is
+        the stamina actually gained). ATTACK_MULTIPLIER (re)starts a 30 s boost
+        (magnitude is the multiplier).
         The phone's distance is trusted evidence, not verified.
         """
         self.advance()
@@ -559,6 +578,10 @@ class GameEngine:
         if item.item_type == "ATTACK_MULTIPLIER":
             player.boost_until = self.fight_seconds + ATTACK_BOOST_SECONDS
             return "ACCEPTED", item.item_type, ATTACK_ITEM_MULTIPLIER
+        if item.item_type == "STAMINA":
+            before = player.stamina
+            player.stamina = round(min(100.0, before + STAMINA_ITEM_AMOUNT), 2)
+            return "ACCEPTED", item.item_type, round(player.stamina - before, 2)
         before = player.health
         player.health = round(min(100.0, before + HEALTH_ITEM_HEAL), 2)
         return "ACCEPTED", item.item_type, round(player.health - before, 2)

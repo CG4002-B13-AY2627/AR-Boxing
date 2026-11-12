@@ -194,6 +194,7 @@ don't use them.
 | `g`, `x` | Start or end a guard (1 s, 8 stamina) |
 | `w` | Weave: 3 s invincible to punches (35 stamina, no regen, 4 s cooldown) |
 | `i` | Spawn a health pack for the selected player |
+| `b` | Spawn a water bottle (+40 stamina) for the selected player |
 | `o` | Spawn an attack boost for the selected player |
 | `k` | Pickup: the selected player's phone is asked for its reach |
 | `p` | Operator pause |
@@ -225,18 +226,22 @@ or not, 750 ms, timeout = miss); a pickup waits for the owner's phone
   without enough stamina.
 - Round: 90 s (`--round-seconds`). Result at MATCH_END: higher health wins,
   equal is a draw.
-- Pickups: one item per player at a time (health pack or attack boost), 1 to
+- Pickups: one item per player at a time (health pack, water bottle or attack boost), 1 to
   2 m away (the contract maximum; farther makes the phone reject every
   MatchState) at a random bearing within +/-65 deg, 30 s of fight time to collect
-  (frozen while paused). Spawned by `i` (health) / `o` (attack boost), or
+  (frozen while paused). Spawned by `i` (health) / `b` (stamina) / `o` (attack boost), or
   `--spawn-seconds N` for each connected phone while fighting. Each player's
   delay is drawn separately from 80% to 120% of N fight seconds, starting
-  when they have no item. Players below 50 HP receive health. Otherwise the
+  when they have no item. Players below 50 HP receive health, else players below
+  40 stamina receive a water bottle. Otherwise the
   type is drawn randomly for each spawn. Each phone receives only its own
   active item. Items clear at ROUND_END. The live servers (`esp_ai_live.py`,
   `esp_ai_live_dashboard.py`) take the same `--spawn-seconds` (default 0:
   no automatic spawns).
 - Health pack: +25 HP (capped at 100, consumed even at full).
+- Water bottle (`STAMINA`): an instant +40 stamina (capped at 100, consumed even
+  at full; not a regen effect). The `ITEM_PICKUP` event's magnitude is the
+  stamina actually gained and `effect_duration_ms` is 0.
 - Attack boost: the collector's punches deal 1.5x damage for 30 s of fight time
   (frozen while paused). MatchState reports `attack_multiplier` and
   `attack_multiplier_remaining_ms`; the `ITEM_PICKUP` event has magnitude 1.5
