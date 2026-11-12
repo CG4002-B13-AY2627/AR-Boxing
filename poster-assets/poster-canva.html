@@ -611,10 +611,10 @@
             <div class="t small ctr" style="left:388mm; top:74mm; width:28mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
             <div class="m ctr" style="left:388mm; top:95.5mm; width:28mm; color:var(--ink)">WSS</div>
 
-            <div class="t" style="left:436mm; top:19mm; line-height:7.6mm"><b style="color:var(--red); font-size:6.6mm">Player $1$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
-            <div class="t" style="left:436mm; top:95mm; line-height:7.6mm"><b style="color:var(--blue); font-size:6.6mm">Player $2$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
+            <div class="t" style="left:436mm; top:19mm; line-height:7.6mm"><b style="color:var(--red); font-size:6.6mm">Player $1$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports only what it sees</span></div>
+            <div class="t" style="left:436mm; top:95mm; line-height:7.6mm"><b style="color:var(--blue); font-size:6.6mm">Player $2$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports only what it sees</span></div>
 
-            <div class="t ctr" style="left:0; top:155mm; width:520mm; font-size:5.4mm">Each phone tells the Ultra96 whether it can see the opponent, then shows the result. Neither phone can change health or stamina.</div>
+            <div class="t ctr" style="left:0; top:155mm; width:520mm; font-size:5.4mm">Each phone reports what its camera sees (is the opponent in view, how far is the item), then shows the result. Neither phone can change health or stamina.</div>
           </div>
           </div>
         </div>
@@ -707,7 +707,7 @@
             <h4><span class="pill ge">Engine</span><span class="pill vz">Viz</span><span>Damage rule</span></h4>
             <div class="eq">$D = D_{\text{base}} \cdot k \cdot a \cdot m$</div>
             <div class="eq">$m = \begin{cases} m_{\text{block}} & \text{blocked} \\ 0 & \text{dodged or not in view} \\ 1 & \text{otherwise} \end{cases}$</div>
-            <p>$k$ scales with intensity. $m_{\text{block}} = 0.25$; $a = 1.5$ during an attack boost, else $1$.</p>
+            <p>$k = 0.6$, a fixed game intensity. $m_{\text{block}} = 0.25$; $a = 1.5$ during an attack boost, else $1$.</p>
           </div>
         </div>
       </div>
@@ -795,9 +795,9 @@
           <p class="role">Encrypted, self-healing links from glove to phone.</p>
           <ul>
             <li>Binary glove protocol: handshake, heartbeat, clock sync, actuate</li>
-            <li>A glove silent for $3.5\,\text{s}$ is dropped, then rejoins with a new handshake</li>
+            <li>A glove silent for $3.5\,\text{s}$ is dropped and rejoins; a lost phone pauses the fight</li>
             <li>Phones get MatchState every $100\,\text{ms}$, plus a GameEvent per outcome</li>
-            <li>Every attack has an ID, so a retried message is applied once</li>
+            <li>Sequence numbers drop stale messages; attack IDs stop double counting</li>
           </ul>
           <div class="metric"><b>$\text{TLS}\ 1.2$</b><span>minimum on both the glove link and the phone link</span></div>
         </article>
@@ -818,7 +818,7 @@
           <div class="card-top"><h3>Visualizer</h3><span class="tag">Unity 6 · ARKit · iOS</span></div>
           <p class="role">The fight, seen through your phone.</p>
           <ul>
-            <li>AprilTag on the chest locates the opponent; body tracking adds their gloves</li>
+            <li>A chest AprilTag locates the opponent; optional body tracking adds their gloves</li>
             <li>Floor detection anchors the arena; items float at chest height</li>
             <li>HUD, hit and block effects, sound, a tutorial and a headset mode</li>
             <li>Read-only: it shows MatchState and never sets damage</li>
@@ -848,7 +848,7 @@
         <p>The decisions that shaped the system.</p>
       </div>
       <div class="designs">
-        <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b><p>The game engine runs on the Ultra96. A phone only reports <em>whether it can see the opponent</em>, so lost tracking or a slow phone can’t change the score.</p></div>
+        <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b><p>The game engine runs on the Ultra96. A phone only reports <em>what its camera sees</em>: the opponent in view, or how far an item is. Lost tracking or a slow phone can’t change the score.</p></div>
         <div class="design"><div class="pills"><span class="pill hw">HW</span><span class="pill cm">Comms</span></div><b>Gateway glove</b><p>The left glove talks only to the right one over ESP-NOW. That gives <em>one TLS handshake and one clock</em> per player, so both wrists line up in time.</p></div>
         <div class="design"><div class="pills"><span class="pill ai">AI</span></div><b>Gate, don’t vote</b><p>Overlapping windows see one punch $4$ to $6$ times. A <em>$0.90$ gate that re-arms only when the class changes</em> makes it fire once.</p></div>
         <div class="design"><div class="pills"><span class="pill ge">Engine</span></div><b>Tuned by simulation</b><p>A $1.5\,\text{s}$ cooldown and slow stamina refill were set with a <em>Monte Carlo of realistic play</em>: a match ends at a median of about $176\,\text{s}$.</p></div>
