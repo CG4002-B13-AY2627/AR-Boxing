@@ -46,9 +46,11 @@ START_WINDOW_MS = 640
 START_WINDOW_ROWS = START_WINDOW_MS * ROWS_PER_SECOND // 1000
 
 # Postures rather than gestures: after a single countdown, every
-# SAMPLES_PER_ACTION rows recorded is one action. Block is not here: each
-# block is one distinct movement into the guard, captured like a punch.
-CONTINUOUS_ACTIONS = ("idle",)
+# SAMPLES_PER_ACTION rows recorded is one action. Empty: every label, block
+# and idle included, is now one distinct movement captured like a punch. An
+# idle rep must still move past the thresholds below (a guard adjustment, a
+# shuffle) or the attempt is discarded as "no movement".
+CONTINUOUS_ACTIONS = ()
 
 # Movement detection, in raw counts. The last REST_ROWS of the countdown are
 # the resting pose, and an action starts on the first row where either hand's
