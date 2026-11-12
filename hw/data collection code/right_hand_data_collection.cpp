@@ -203,6 +203,10 @@ void loop() {
   if (millis() - lastSampleTime >= SAMPLE_INTERVAL) {
     lastSampleTime += SAMPLE_INTERVAL;
 
+    // Count every sample period, printed or not, so a skipped row shows up
+    // as a gap in the index on the collector side.
+    uint32_t index = sampleIndex++;
+
     // Read RIGHT raw MPU6050 data into normal aligned variables.
     int16_t rightAx;
     int16_t rightAy;
@@ -245,7 +249,7 @@ void loop() {
       interrupts();
 
       Serial.print("DATA,");
-      Serial.print(sampleIndex++);
+      Serial.print(index);
       Serial.print(",");
 
       // ------------------------------------------------------

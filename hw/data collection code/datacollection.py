@@ -14,7 +14,12 @@ from zoneinfo import ZoneInfo
 
 PORT = "COM5"
 BAUD_RATE = 115200
-OUTPUT_FILE = "imu_two_hands_raw_16g_2000dps.csv"
+
+SGT = ZoneInfo("Asia/Singapore")
+
+# One CSV per session date, named DD-MM-YY.csv like the existing recordings.
+# See WINDOW_MARKER_FILE below for what keeps old recordings safe.
+OUTPUT_FILE = datetime.now(SGT).strftime("%d-%m-%y") + ".csv"
 
 # The gloves stream at ~100 Hz (one row per ~10 ms). Timing below is counted
 # in rows read, so it follows the data rather than the PC clock.
@@ -22,6 +27,16 @@ ROWS_PER_SECOND = 100
 
 # Every saved action is exactly this many rows.
 SAMPLES_PER_ACTION = 32
+
+# Each action is captured as DELAY_SAMPLES + SAMPLES_PER_ACTION consecutive
+# rows from its trigger, and only the last SAMPLES_PER_ACTION are saved, so the
+# saved window starts DELAY_SAMPLES rows after the trigger. This applies to
+# every label. The trigger is the first row the collector would otherwise
+# save: LEAD_IN_ROWS before the movement threshold trips for gestures, and the
+# start of each action for continuous labels.
+DELAY_SAMPLES = 8
+CAPTURE_ROWS = DELAY_SAMPLES + SAMPLES_PER_ACTION
+DELAY_MS = DELAY_SAMPLES * 1000 // ROWS_PER_SECOND
 
 # The buttons are not used. Each attempt counts down 3-2-1-0 in the terminal,
 # one second per number, and the action must start within START_WINDOW_MS of
@@ -46,6 +61,37 @@ GYRO_THRESHOLD = 1250
 # The thresholds trip a few rows after the movement really begins, so each
 # action also keeps this many rows from before that point.
 LEAD_IN_ROWS = 3
+
+# When this collector creates OUTPUT_FILE it also writes WINDOW_TAG to
+# WINDOW_MARKER_FILE. An existing OUTPUT_FILE is only appended to if its marker
+# matches, so reps saved with any other window, including every recording made
+# before DELAY_SAMPLES existed (none have a marker), are never mixed with these.
+WINDOW_MARKER_FILE = OUTPUT_FILE + ".window"
+WINDOW_TAG = (
+    f"delay_samples={DELAY_SAMPLES} samples_per_action={SAMPLES_PER_ACTION} "
+    f"lead_in_rows={LEAD_IN_ROWS}\n"
+)
+
+
+def output_file_problem():
+    """Return why OUTPUT_FILE must not be appended to, or None if it is safe."""
+    if not os.path.exists(OUTPUT_FILE) or os.path.getsize(OUTPUT_FILE) == 0:
+        return None
+    try:
+        with open(WINDOW_MARKER_FILE) as marker:
+            tag = marker.read()
+    except FileNotFoundError:
+        return "it has no window marker, so it was recorded with an older window"
+    if tag != WINDOW_TAG:
+        return f"it was recorded with a different window ({tag.strip()})"
+    return None
+
+
+if problem := output_file_problem():
+    raise SystemExit(
+        f"Refusing to append to {OUTPUT_FILE}: {problem}.\n"
+        f"Move that file out of this folder, or set OUTPUT_FILE to a new name."
+    )
 
 LABEL_TO_ID = {
     "l_straight": 0,
@@ -74,8 +120,6 @@ MOTION_VECTORS = (
     (("left_ax", "left_ay", "left_az"), ACCEL_THRESHOLD),
     (("left_gx", "left_gy", "left_gz"), GYRO_THRESHOLD),
 )
-
-SGT = ZoneInfo("Asia/Singapore")
 
 # ============================================================
 # User inputs
@@ -125,6 +169,7 @@ print(f"Action:          {action_name} ({action_label})")
 print(f"User ID:         {user_id}")
 print(f"Target actions:  {total_required}")
 print(f"Action length:   {SAMPLES_PER_ACTION} rows")
+print(f"Start delay:     {DELAY_SAMPLES} rows ({DELAY_MS} ms) after trigger")
 if action_name not in CONTINUOUS_ACTIONS:
     print(f"Start window:    {START_WINDOW_MS} ms after 0")
 print("======================================")
@@ -179,13 +224,33 @@ def read_row():
             continue
 
         try:
+            index = int(values[1])
             imu_values = [int(value) for value in values[2:14]]
         except ValueError:
             continue
 
         row = dict(zip(IMU_FIELDS, imu_values))
+        row["index"] = index
         row["timestamp"] = get_sgt_timestamp()
         return row
+
+
+def is_consecutive(rows):
+    """True when the firmware sample indices have no gaps or repeats."""
+    return all(b["index"] == a["index"] + 1 for a, b in zip(rows, rows[1:]))
+
+
+def finish_capture(capture):
+    """Read rows until capture holds CAPTURE_ROWS, then drop the delay.
+
+    Returns the SAMPLES_PER_ACTION rows to save, or None if any sample in the
+    capture was lost, in which case the action must be recorded again.
+    """
+    while len(capture) < CAPTURE_ROWS:
+        capture.append(read_row())
+    if not is_consecutive(capture):
+        return None
+    return capture[DELAY_SAMPLES:]
 
 
 def rest_pose(rows):
@@ -231,9 +296,10 @@ def attempt_action():
     for _ in range(START_WINDOW_ROWS):
         row = read_row()
         if is_moving(row, rest):
-            action_rows = list(recent)[len(recent) - LEAD_IN_ROWS:] + [row]
-            while len(action_rows) < SAMPLES_PER_ACTION:
-                action_rows.append(read_row())
+            capture = list(recent)[len(recent) - LEAD_IN_ROWS:] + [row]
+            action_rows = finish_capture(capture)
+            if action_rows is None:
+                return None, "samples lost during capture"
             return action_rows, None
         recent.append(row)
 
@@ -275,8 +341,8 @@ try:
             f"start within {START_WINDOW_MS} ms."
         )
         print(
-            f"Each action keeps {SAMPLES_PER_ACTION} samples from where "
-            f"the movement starts."
+            f"Each action keeps {SAMPLES_PER_ACTION} samples starting "
+            f"{DELAY_MS} ms after the trigger."
         )
     print("Press Ctrl+C to stop.\n")
 
@@ -286,7 +352,10 @@ try:
 
     while valid_action_count < total_required:
         if action_name in CONTINUOUS_ACTIONS:
-            action_rows = [read_row() for _ in range(SAMPLES_PER_ACTION)]
+            action_rows = finish_capture([])
+            if action_rows is None:
+                print("[WARNING] Samples lost during capture. Discarded.")
+                continue
         else:
             attempt_count += 1
             action_rows, problem = attempt_action()
@@ -323,10 +392,15 @@ try:
             break
         print("Please enter only 1 or 0.")
 
-    if save_input == "1":
+    if save_input == "1" and (problem := output_file_problem()):
+        print(f"\nNot saved. Refusing to append to {OUTPUT_FILE}: {problem}.")
+    elif save_input == "1":
         file_exists = os.path.exists(OUTPUT_FILE)
         file_empty = not file_exists or os.path.getsize(OUTPUT_FILE) == 0
 
+        if file_empty:
+            with open(WINDOW_MARKER_FILE, "w") as marker:
+                marker.write(WINDOW_TAG)
         with open(OUTPUT_FILE, "a", newline="") as file:
             writer = csv.writer(file)
             if file_empty:
