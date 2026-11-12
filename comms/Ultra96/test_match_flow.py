@@ -14,7 +14,7 @@ from pathlib import Path
 
 import websockets
 
-from game_engine import GameEngine
+from game_engine import ROUND_SECONDS, GameEngine
 from visualizer_protocol import PhoneHub, decode_command
 
 
@@ -106,7 +106,7 @@ class EngineMatchFlowTests(unittest.TestCase):
         engine.clock.advance(1.75)
         engine.advance()
         self.assertEqual(engine.phase, "FIGHTING")
-        self.assertEqual(engine.round_time, 90.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS)
         self.assertEqual(engine.snapshot()["phase_remaining_ms"], 0)
 
     def test_pause_freezes_the_clock_and_resume_needs_everyone(self):
@@ -114,10 +114,10 @@ class EngineMatchFlowTests(unittest.TestCase):
         engine.clock.advance(10)
         self.assertTrue(engine.command(2, "PAUSE"))
         self.assertEqual(engine.phase, "PAUSED")
-        self.assertEqual(engine.round_time, 80.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS - 10)
         engine.clock.advance(30)
         engine.advance()
-        self.assertEqual(engine.round_time, 80.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS - 10)
         engine.command(1, "RESUME")
         self.assertEqual(engine.phase, "PAUSED")
         engine.command(2, "RESUME")
@@ -125,7 +125,7 @@ class EngineMatchFlowTests(unittest.TestCase):
         engine.clock.advance(3)
         engine.advance()
         self.assertEqual(engine.phase, "FIGHTING")
-        self.assertEqual(engine.round_time, 80.0)
+        self.assertEqual(engine.round_time, ROUND_SECONDS - 10)
 
     def test_disconnect_pauses_fighting_and_countdown_and_drops_ready(self):
         engine = to_fighting(joined())
@@ -175,7 +175,7 @@ class EngineMatchFlowTests(unittest.TestCase):
 
     def test_time_out_with_equal_health_is_a_draw(self):
         engine = to_fighting(joined())
-        engine.clock.advance(90)
+        engine.clock.advance(ROUND_SECONDS)
         engine.advance()
         engine.clock.advance(2)
         engine.advance()

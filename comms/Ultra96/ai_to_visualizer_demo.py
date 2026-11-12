@@ -336,9 +336,11 @@ def print_match_state(hub):
                  if value.get("weave_remaining_ms", 0) > 0 else
                  f" weave cooldown {value['weave_cooldown_ms'] / 1000:.1f}s"
                  if value.get("weave_cooldown_ms", 0) > 0 else "")
+        cooldown = (f" READY in {value['action_cooldown_ms'] / 1000:.1f}s"
+                    if value.get("action_cooldown_ms", 0) > 0 else "")
         players.append(f"P{player} HP={value['health']:g} "
                        f"STA={value['stamina']:g} "
-                       f"GUARD={'ON' if value['is_blocking'] else 'off'}{boost}{weave}")
+                       f"GUARD={'ON' if value['is_blocking'] else 'off'}{cooldown}{boost}{weave}")
     print(f"[STATE] seq={hub.state_seq} {state['state']} "
           f"time={state['round_time']:g}s | {' | '.join(players)}", flush=True)
 
@@ -595,7 +597,7 @@ if __name__ == "__main__":
                         help="normalized game intensity, independent of model physical intensity")
     parser.add_argument("--response-timeout-ms", type=int, default=750,
                         help="phone observation deadline in milliseconds (100..2000)")
-    parser.add_argument("--round-seconds", type=float, default=90.0,
+    parser.add_argument("--round-seconds", type=float, default=180.0,
                         help="single-round duration for timer/round-end tests")
     parser.add_argument("--god-mode", action="store_true",
                         help="both players keep at least 1 HP; freeze round timer (default: off)")

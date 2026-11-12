@@ -155,7 +155,7 @@ class PauseEpochTests(unittest.IsolatedAsyncioTestCase):
 
     async def test_a_punch_lands_when_nothing_interrupts_it(self):
         event = await self.punch_with_pause(False)
-        self.assertEqual((event["outcome"], event["damage"]), ("HIT", 5.0))
+        self.assertEqual((event["outcome"], event["damage"]), ("HIT", 3.0))
 
     async def test_a_punch_from_before_a_pause_misses_after_it(self):
         event = await self.punch_with_pause(True)

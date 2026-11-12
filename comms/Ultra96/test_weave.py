@@ -155,8 +155,10 @@ class EngineWeaveTests(unittest.TestCase):
         self.assertEqual(state["player_1"]["weave_cooldown_ms"], 3500)
 
     def test_a_weave_costs_more_than_any_punch(self):
+        # Since the 11 November rebalance (regen 4/s) a weave costs about two
+        # heavy punches, which is ~12 s of regeneration (it was ~6 s before).
         self.assertGreater(WEAVE_COST + WEAVE_SECONDS * STAMINA_REGEN_PER_SECOND,
-                           3 * max(STAMINA_COST.values()))
+                           2 * max(STAMINA_COST.values()))
 
 
 class TutorialWeaveTests(unittest.TestCase):

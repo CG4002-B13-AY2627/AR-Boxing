@@ -16,7 +16,7 @@ from pathlib import Path
 
 import websockets
 
-from game_engine import GameEngine
+from game_engine import ACTION_COOLDOWN_SECONDS, GameEngine
 from visualizer_protocol import PhoneHub, decode_hello, decode_observation
 
 
@@ -247,7 +247,7 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                             other = two if source == 1 else one
                             with self.assertRaises(asyncio.TimeoutError):
                                 await asyncio.wait_for(other.recv(), 0.03)
-                            clock.advance(1.1)
+                            clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         guard = await hub.request_guard(2, guard_id="legacy-test-guard-1")
                         self.assertEqual(json.loads(await one.recv()), guard)
@@ -269,10 +269,10 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                         blocked_two = json.loads(await two.recv())
                         self.assertEqual(blocked_one, blocked_two)
                         self.assertEqual(blocked_one["outcome"], "BLOCK")
-                        self.assertEqual(blocked_one["damage"], 0.75)
+                        self.assertEqual(blocked_one["damage"], 0.38)  # jab 3 x 0.5 x block 0.25
                         self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
                         await task
-                        clock.advance(1.1)
+                        clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         # A duplicated engine request with the same stable ID
                         # creates only one attempt, one event, and one mutation.
@@ -313,7 +313,7 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                             self.assertEqual(json.loads(await one.recv())["type"], "MatchState")
                         with self.assertRaises(asyncio.TimeoutError):
                             await asyncio.wait_for(one.recv(), 0.03)
-                        clock.advance(1.1)
+                        clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         # The other phone cannot answer an attacker's request.
                         task = asyncio.create_task(hub.request_punch(1, "JAB", 0.9, 0.5))
@@ -333,7 +333,7 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                         self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
                         self.assertEqual(json.loads(await one.recv()), json.loads(await two.recv()))
                         await task
-                        clock.advance(1.1)
+                        clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         # No response fails safe to a zero-damage miss.
                         task = asyncio.create_task(hub.request_punch(
@@ -357,7 +357,7 @@ class EncryptedHandshakeTests(unittest.IsolatedAsyncioTestCase):
                         }))
                         self.assertEqual(json.loads(await one.recv()), timeout_one)
                         await one.recv()  # fresh convergence state for requester only
-                        clock.advance(1.1)
+                        clock.advance(ACTION_COOLDOWN_SECONDS)
 
                         # Disconnect before replying, rejoin the same reserved
                         # player slot, and finish the original pending ID once.
