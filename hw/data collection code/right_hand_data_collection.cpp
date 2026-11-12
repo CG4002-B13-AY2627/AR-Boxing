@@ -125,8 +125,15 @@ bool readRawMPU6050(
 // ============================================================
 
 // Arduino-ESP32 2.x ESP-NOW receive callback.
+// ESP32 Arduino core 3.x changed the first callback argument from the sender
+// MAC to an esp_now_recv_info struct. It is unused here either way.
+#if defined(ESP_ARDUINO_VERSION_MAJOR) && ESP_ARDUINO_VERSION_MAJOR >= 3
+void onDataRecv(
+  const esp_now_recv_info_t *info,
+#else
 void onDataRecv(
   const uint8_t *mac,
+#endif
   const uint8_t *incomingData,
   int len
 ) {

@@ -12,7 +12,7 @@ from zoneinfo import ZoneInfo
 
 #IMU fields are stored as signed raw integer sensor counts.
 
-PORT = "COM5"
+PORT = "/dev/cu.wchusbserial1410"
 BAUD_RATE = 115200
 
 SGT = ZoneInfo("Asia/Singapore")
