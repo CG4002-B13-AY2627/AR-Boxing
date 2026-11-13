@@ -62,7 +62,7 @@
   header {
     background: var(--night);
     color: #F4F1EA;
-    padding: 9mm 30mm 9mm;
+    padding: 10mm 30mm 6mm;
     position: relative;
     display: grid;
     grid-template-columns: 1fr auto;
@@ -129,16 +129,16 @@
   /* ---------------- body ---------------- */
   main {
     flex: 1;
-    padding: 7mm 30mm 0;
+    padding: 4mm 30mm 0;
     display: flex;
     flex-direction: column;
-    gap: 5mm;
+    gap: 3mm;
   }
   .sec-head {
     display: flex;
     align-items: baseline;
     gap: 5mm;
-    margin: 0 0 3mm;
+    margin: 0 0 2mm;
   }
   .sec-head .num {
     font-family: var(--mono);
@@ -405,7 +405,7 @@
 
   footer {
     margin-top: auto;
-    padding: 3.5mm 30mm 4mm;
+    padding: 2.5mm 30mm 10mm;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -655,7 +655,7 @@
         <div class="chain">
           <div class="stg hw"><div class="hd"><span>Glove</span><s>$1$</s></div><div class="bd"><b>Sense</b><span>MPU6050 reads accel at $\pm 16\,g$ and gyro at $\pm 2000^{\circ}/\text{s}$, through a low-pass filter.</span><div class="kpi">$10\,\text{ms}$<small>per sample</small></div></div></div>
           <div class="stg hw"><div class="hd"><span>Glove</span><s>$2$</s></div><div class="bd"><b>Relay</b><span>The left glove sends to the right over ESP-NOW. The right glove stamps both with one clock.</span><div class="kpi">$1$ link<small>per player</small></div></div></div>
-          <div class="stg cm"><div class="hd"><span>Comms</span><s>$3$</s></div><div class="bd"><b>Transmit</b><span>A framed, checksummed packet goes over TLS to the Ultra96. Silent gloves are dropped.</span><div class="kpi">$26\,\text{B}$<small>per sample pair</small></div></div></div>
+          <div class="stg cm"><div class="hd"><span>Comms</span><s>$3$</s></div><div class="bd"><b>Transmit</b><span>A framed, checksummed packet goes over TLS to the Ultra96. Silent gloves are dropped.</span><div class="kpi">$26\,\text{B}$<small>per wrist sample</small></div></div></div>
           <div class="stg ai"><div class="hd"><span>AI on PS</span><s>$4$</s></div><div class="bd"><b>Pair</b><span>Left and right samples are matched on the shared clock into one row.</span><div class="kpi">$12$<small>channels per row</small></div></div></div>
           <div class="stg ai"><div class="hd"><span>AI on PS</span><s>$5$</s></div><div class="bd"><b>Window</b><span>The last $32$ rows are normalised and rounded to $4$-bit integers.</span><div class="kpi">$0.34\,\text{ms}$<small>push + normalise</small></div></div></div>
           <div class="stg ai"><div class="hd"><span>AI on PL</span><s>$6$</s></div><div class="bd"><b>Infer</b><span>The FPGA runs the CNN and returns $10$ class scores.</span><div class="kpi">$1.35\,\text{ms}$<small>copy, run, read back</small></div></div></div>
@@ -795,7 +795,7 @@
           <p class="role">Encrypted, self-healing links from glove to phone.</p>
           <ul>
             <li>Binary glove protocol: handshake, heartbeat, clock sync, actuate</li>
-            <li>A glove silent for $3.5\,\text{s}$ is dropped, then rejoins with a new handshake</li>
+            <li>The gateway reconnects and performs a fresh handshake after a link failure</li>
             <li>Phones get MatchState every $100\,\text{ms}$, plus a GameEvent per outcome</li>
             <li>Every attack has an ID, so a retried message is applied once</li>
           </ul>
@@ -808,7 +808,7 @@
           <ul>
             <li>$6$-axis IMU on each wrist: $\pm 16\,g$ accel, $\pm 2000^{\circ}/\text{s}$ gyro</li>
             <li>Left glove relays through the right glove over ESP-NOW</li>
-            <li>Only the right glove joins Wi-Fi, so each player needs one TLS session</li>
+            <li>Both gloves join the same hotspot. The right glove maintains one TLS connection</li>
             <li>Vibration motor in each glove: a $200\,\text{ms}$ buzz when your punch lands</li>
           </ul>
           <div class="metric"><b>$100\,\text{Hz}$</b><span>sampling on every wrist, $12$ channels per player</span></div>
@@ -848,7 +848,7 @@
         <p>The decisions that shaped the system.</p>
       </div>
       <div class="designs">
-        <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b><p>The game engine runs on the Ultra96. A phone only reports <em>whether it can see the opponent</em>, so lost tracking or a slow phone can’t change the score.</p></div>
+        <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b><p>The game engine runs on the Ultra96. A phone only reports AR observations. The Ultra96 resolves hits, pickups, and scoring.</p></div>
         <div class="design"><div class="pills"><span class="pill hw">HW</span><span class="pill cm">Comms</span></div><b>Gateway glove</b><p>The left glove talks only to the right one over ESP-NOW. That gives <em>one TLS handshake and one clock</em> per player, so both wrists line up in time.</p></div>
         <div class="design"><div class="pills"><span class="pill ai">AI</span></div><b>Gate, don’t vote</b><p>Overlapping windows see one punch $4$ to $6$ times. A <em>$0.90$ gate that re-arms only when the class changes</em> makes it fire once.</p></div>
         <div class="design"><div class="pills"><span class="pill ge">Engine</span></div><b>Tuned by simulation</b><p>A $1.5\,\text{s}$ cooldown and slow stamina refill were set with a <em>Monte Carlo of realistic play</em>: a match ends at a median of about $176\,\text{s}$.</p></div>
