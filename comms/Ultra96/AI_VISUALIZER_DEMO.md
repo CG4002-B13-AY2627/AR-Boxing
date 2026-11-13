@@ -220,10 +220,14 @@ Rebalanced 11 November 2026 so a typical match fills the 3-minute round.
 | Hook | 6 | 16 | 0.7 s |
 | Uppercut | 8 | 22 | 1.0 s |
 
-- Damage = base x `--demo-intensity` (default 0.6) x the attacker's attack
+- Damage = base x game intensity x the attacker's attack
   multiplier (1.5 while boosted, else 1), x 0.25 if the target is guarding when
   the punch resolves, capped by remaining health. Not tracked
   = miss, no damage. A punch still pending across a pause misses.
+- The live servers, including `esp_ai_live_dashboard_16g.py`, divide the AI's
+  peak acceleration above gravity by 50 m/s² and clamp the result to 0–1.
+  Pass `--demo-intensity` to force a fixed value.
+  The standalone demo defaults to a fixed intensity of 0.6.
 - Stamina regenerates at 4/s while fighting. An attack is refused (no
   `PunchAttempt`) outside FIGHTING, during the previous animation, guard or
   action cooldown, or without enough stamina.

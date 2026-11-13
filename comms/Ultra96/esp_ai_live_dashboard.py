@@ -568,9 +568,10 @@ async def main(args):
 
 
 def run_cli(imu_sensitivity=LEGACY_IMU_SENSITIVITY,
-            default_ai_dir=Path('/home/xilinx/ai/integration-check')):
+            default_ai_dir=Path('/home/xilinx/ai/integration-check'),
+            description=__doc__):
     here = Path(__file__).resolve().parent
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=description)
     parser.add_argument('--mode', choices=('inspect', 'fpga'), default='inspect')
     parser.add_argument('--ai-dir', type=Path, default=default_ai_dir,
                         required=default_ai_dir is None)
@@ -587,7 +588,8 @@ def run_cli(imu_sensitivity=LEGACY_IMU_SENSITIVITY,
     parser.add_argument('--spawn-seconds', type=float, default=0.0,
                         help='average item delay per player in fight seconds (independent ±20%% jitter; '
                              'default 0 = no automatic pickups)')
-    parser.add_argument('--demo-intensity', type=float, default=.6)
+    parser.add_argument('--demo-intensity', type=float,
+                        help='override measured punch intensity with a fixed value (0..1)')
     parser.add_argument('--show-samples', action='store_true')
     parser.add_argument('--haptic-test', action='store_true',
                         help='enable terminal keys: 1/2 player, L/R vibrate hand, Q stop server')
@@ -603,7 +605,8 @@ def run_cli(imu_sensitivity=LEGACY_IMU_SENSITIVITY,
         parser.error(f'AI source directory not found: {args.ai_dir / "src"}')
     if not 1 <= args.dashboard_port <= 65535 or args.dashboard_port in (8888,8889):
         parser.error('dashboard port must be 1..65535 and different from 8888/8889')
-    if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
+    if args.round_seconds <= 0 or (args.demo_intensity is not None and
+                                   not 0 <= args.demo_intensity <= 1):
         parser.error('invalid round duration/intensity')
     if not 0 <= args.spawn_seconds <= 600:
         parser.error('--spawn-seconds must be 0..600')

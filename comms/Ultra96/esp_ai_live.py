@@ -2,7 +2,7 @@
 """Experimental fw4 ESP TLS input -> AI worker -> existing GameEngine/WSS.
 
 inspect: validate live alignment, SI units and int8 windows; never infer or punch.
-fpga: use the deployed AI code and hardware; damage intensity stays a demo value.
+fpga: use the deployed AI code and hardware; damage scales with measured intensity.
 Only one process may own each of ports 8888 and 8889.
 """
 import argparse
@@ -332,12 +332,14 @@ if __name__ == '__main__':
     parser.add_argument('--spawn-seconds', type=float, default=0.0,
                         help='average item delay per player in fight seconds (independent ±20%% jitter; '
                              'default 0 = no automatic pickups)')
-    parser.add_argument('--demo-intensity', type=float, default=.6)
+    parser.add_argument('--demo-intensity', type=float,
+                        help='override measured punch intensity with a fixed value (0..1)')
     parser.add_argument('--show-samples', action='store_true')
     args = parser.parse_args()
     if bool(args.phone_cert) != bool(args.phone_key):
         parser.error('--phone-cert and --phone-key go together')
-    if args.round_seconds <= 0 or not 0 <= args.demo_intensity <= 1:
+    if args.round_seconds <= 0 or (args.demo_intensity is not None and
+                                   not 0 <= args.demo_intensity <= 1):
         parser.error('invalid round duration/intensity')
     if not 0 <= args.spawn_seconds <= 600:
         parser.error('--spawn-seconds must be 0..600')

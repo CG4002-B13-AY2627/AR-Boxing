@@ -18,6 +18,7 @@ import argparse
 import asyncio
 from dataclasses import dataclass
 import json
+import math
 from pathlib import Path
 import ssl
 import sys
@@ -42,6 +43,7 @@ DEFAULT_ACTION_MAP = {
 }
 IGNORED_AI_ACTIONS = frozenset({"idle"})
 UNIMPLEMENTED_AI_ACTIONS = frozenset({"use"})
+FULL_DAMAGE_ACCELERATION = 50.0  # m/s² above gravity, provisional live calibration
 
 
 @dataclass(frozen=True)
@@ -133,11 +135,18 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
         return None
     if attack_id is None:
         raise ValueError("a stable attack_id is required for each AI event")
+    intensity = demo_intensity
+    if intensity is None:
+        acceleration = event.intensity
+        if not math.isfinite(acceleration):
+            print(f"[AI SKIP] attack_id={attack_id} invalid acceleration", flush=True)
+            return None
+        intensity = min(1.0, max(0.0, acceleration / FULL_DAMAGE_ACCELERATION))
     duplicate = attack_id in hub.attacks
     print(f"[AI REQUEST] attack_id={attack_id} P{player + 1} {punch} "
-          f"demo_intensity={demo_intensity}", flush=True)
+          f"game_intensity={intensity:.3f}", flush=True)
     final = await hub.request_punch(
-        player + 1, punch, float(event.confidence), demo_intensity,
+        player + 1, punch, float(event.confidence), intensity,
         response_timeout_ms=response_timeout_ms, attack_id=attack_id,
     )
     if final is None:

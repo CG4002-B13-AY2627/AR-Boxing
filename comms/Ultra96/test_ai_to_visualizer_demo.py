@@ -301,5 +301,25 @@ class AiDemoFlowTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(engine.players[1].stamina, 78.0)
 
 
+class MeasuredIntensityTests(unittest.IsolatedAsyncioTestCase):
+    async def test_measured_acceleration_scales_damage_and_caps_at_full_damage(self):
+        for acceleration, intensity, damage in (
+                (20.0, 0.4, 2.4), (40.0, 0.8, 4.8), (75.0, 1.0, 6.0)):
+            with self.subTest(acceleration=acceleration):
+                engine = GameEngine(clock=FakeClock())
+                engine.start()
+                hub = PhoneHub(engine=engine)
+                attack_id = "measured-hook"
+                event = FakeAiEvent("l_hook", 0.0, 0.9, acceleration)
+                task = asyncio.create_task(send_ai_demo(
+                    hub, 0, event, DEFAULT_ACTION_MAP, None, attack_id=attack_id))
+                await asyncio.sleep(0)
+                hub.pending[attack_id].observation_future.set_result("TARGET_TRACKED")
+                result = await task
+                self.assertEqual(result["outcome"], "HIT")
+                self.assertAlmostEqual(result["intensity"], intensity)
+                self.assertAlmostEqual(result["damage"], damage)
+                self.assertAlmostEqual(engine.players[2].health, 100.0 - damage)
+
 if __name__ == "__main__":
     unittest.main()
