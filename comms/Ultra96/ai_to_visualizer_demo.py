@@ -68,13 +68,14 @@ class AttackIds:
 
 
 async def send_ai_demo(hub, player, event, action_map, demo_intensity,
-                       response_timeout_ms=750, attack_id=None, *, held_guard=False):
+                       response_timeout_ms=750, attack_id=None):
     """Map one AI event into the hub's authoritative request/resolve path."""
     if player not in (0, 1):
         raise ValueError("AI player must be 0 or 1")
+    edge = getattr(event, "edge", None)
     print(f"[AI RAW] player={player} action={event.action} "
           f"sample_t={event.t:.3f}s confidence={event.confidence:.3f} "
-          f"intensity={event.intensity:.3f} m/s^2 edge={event.edge}", flush=True)
+          f"intensity={event.intensity:.3f} m/s^2 edge={edge}", flush=True)
     if event.action in IGNORED_AI_ACTIONS:
         print(f"[AI IGNORE] {event.action}: no game action", flush=True)
         return None
@@ -111,23 +112,23 @@ async def send_ai_demo(hub, player, event, action_map, demo_intensity,
                   "MatchState carries weave_remaining_ms", flush=True)
         return final
     if event.action == "block":
-        if event.edge not in ("start", "end"):
-            raise ValueError("block needs edge='start' or 'end'")
+        if edge is not None:
+            print(f"[AI GUARD SKIP] ignoring legacy block edge={edge}", flush=True)
+            return None
         if attack_id is None:
             raise ValueError("a stable action ID is required for block events")
         duplicate = attack_id in hub.guard_actions
         final = await hub.request_guard(
-            player + 1, active=event.edge == "start",
-            confidence=float(event.confidence), guard_id=attack_id, held=held_guard)
+            player + 1, confidence=float(event.confidence), guard_id=attack_id)
         if final is None:
-            print(f"[AI GUARD REJECTED] P{player + 1} {event.edge} id={attack_id}", flush=True)
+            print(f"[AI GUARD REJECTED] P{player + 1} id={attack_id}", flush=True)
         else:
             label = "AI GUARD CACHED" if duplicate else "AI GUARD"
-            print(f"[{label}] P{player + 1} {event.edge} id={attack_id} "
+            print(f"[{label}] P{player + 1} id={attack_id} "
                   f"seq={final['seq']}; MatchState carries is_blocking", flush=True)
         return final
     punch = action_map.get(event.action)
-    if event.edge is not None or punch is None:
+    if edge is not None or punch is None:
         print(f"[AI SKIP] {event.action}: unmapped or invalid punch edge; no punch invented", flush=True)
         return None
     if attack_id is None:
@@ -223,8 +224,7 @@ async def run_fake(args, hub, action_map, attack_ids):
             print(f"[FAKE GUARD] P{3 - args.fake_player} "
                   f"{'started' if guard else 'rejected'} id={guard_id}", flush=True)
         action = "FAKE_PUNCH" if args.fake_punch else args.fake_action
-        event = FakeAiEvent(action, time.monotonic(), args.fake_confidence,
-                            edge=getattr(args, "fake_edge", None))
+        event = FakeAiEvent(action, time.monotonic(), args.fake_confidence)
         attack_id = attack_ids.next(player)
         final = await send_ai_demo(hub, player, event, action_map,
                                    args.demo_intensity, args.response_timeout_ms,
@@ -606,9 +606,7 @@ if __name__ == "__main__":
     parser.add_argument("--fake-player", type=int, choices=(1, 2), default=1,
                         help="attacking phone slot for fake source")
     parser.add_argument("--fake-action", default="l_hook",
-                        help="AI label to inject; block also requires --fake-edge")
-    parser.add_argument("--fake-edge", choices=("start", "end"),
-                        help="postprocess edge for --fake-action block")
+                        help="AI label to inject")
     parser.add_argument("--fake-punch", choices=sorted(PUNCHES),
                         help="protocol punch for synthetic testing, bypassing AI label mapping")
     parser.add_argument("--fake-confidence", type=float, default=0.95)
@@ -626,8 +624,6 @@ if __name__ == "__main__":
                         help="close WSS after injections; otherwise wait for Ctrl+C")
     args = parser.parse_args()
     args.ai_dir = args.ai_dir.expanduser().resolve()
-    if args.source == "fake" and not args.fake_punch and args.fake_action == "block" and args.fake_edge is None:
-        parser.error("--fake-action block requires --fake-edge start or end")
     if args.insecure_ws and args.host not in ("127.0.0.1", "localhost", "::1"):
         parser.error("--insecure-ws is only for local tests: use --host 127.0.0.1")
     if (args.samples < 1 or not 0 <= args.demo_intensity <= 1 or

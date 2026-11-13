@@ -61,20 +61,14 @@ class Pipeline:
 
     def publish(self, player, event):
         # Runs only on asyncio loop; observation waits never block acquisition/infer.
-        # Reset and release must still run when punch observations fill the queue.
-        releases_guard = event is None or (event.action == "block" and event.edge == "end")
-        if len(self.pending) >= 16 and not releases_guard:
+        if len(self.pending) >= 16:
             self.counts['event_drops'] += 1
             return
         if self.hub.engine.phase != 'FIGHTING':
             return
-        if event is None:
-            action = self.hub.release_held_guard(player)
-        else:
-            action = send_ai_demo(
-                self.hub, player-1, event, DEFAULT_ACTION_MAP,
-                self.args.demo_intensity, 750, self.ids.next(player-1),
-                held_guard=True)
+        action = send_ai_demo(
+            self.hub, player-1, event, DEFAULT_ACTION_MAP,
+            self.args.demo_intensity, 750, self.ids.next(player-1))
         task = asyncio.create_task(action)
         self.pending.add(task)
         def done(result):
@@ -127,7 +121,6 @@ class Pipeline:
                         not .009 <= stamp - previous[1] <= .011):
                     buffers[player].reset()
                     posts[player].reset()
-                    self.loop.call_soon_threadsafe(self.publish, player, None)
                     self.counts['resets'] += 1
                 last[player] = (token, stamp)
                 si = pre.sample(counts)

@@ -254,30 +254,31 @@ class CapturingSocket:
 
 
 class GameEngineTransportTests(unittest.IsolatedAsyncioTestCase):
-    async def test_ai_guard_release_is_applied_before_the_following_punch(self):
-        import asyncio
+    async def test_ai_block_triggers_one_timed_guard(self):
+        from types import SimpleNamespace
+
         from ai_to_visualizer_demo import DEFAULT_ACTION_MAP, FakeAiEvent, send_ai_demo
 
         clock = FakeClock()
         engine = GameEngine(clock=clock)
         engine.start()
-        engine.note_sensor_pair(1)
         hub = PhoneHub(engine=engine)
-        start = FakeAiEvent("block", 0.0, 0.9, 0.0, "start")
-        self.assertIsNotNone(await send_ai_demo(
-            hub, 0, start, DEFAULT_ACTION_MAP, 1.0, attack_id="hold", held_guard=True))
-        for _ in range(3):   # hold the guard through the cooldown it started
-            clock.advance(ACTION_COOLDOWN_SECONDS / 3)
-            engine.note_sensor_pair(1)
-        end = FakeAiEvent("block", 0.25, 0.9, 0.0, "end")
-        punch = FakeAiEvent("l_straight", 0.25, 0.9, 1.0, None)
-        release, attack = await asyncio.gather(
-            send_ai_demo(hub, 0, end, DEFAULT_ACTION_MAP, 1.0, 100, "release", held_guard=True),
-            send_ai_demo(hub, 0, punch, DEFAULT_ACTION_MAP, 1.0, 100, "punch", held_guard=True),
-        )
-        self.assertIsNotNone(release)
-        self.assertEqual(attack["punch"], "JAB")
+        block = SimpleNamespace(action="block", t=0.0, confidence=0.9, intensity=0.0)
+        event = await send_ai_demo(hub, 0, block, DEFAULT_ACTION_MAP, 1.0, attack_id="block")
+        self.assertEqual(event["event"], "GUARD")
+        self.assertEqual(engine.players[1].stamina, 92.0)
+        self.assertEqual(await send_ai_demo(
+            hub, 0, block, DEFAULT_ACTION_MAP, 1.0, attack_id="block"), event)
+        self.assertEqual(engine.players[1].stamina, 92.0)
+        legacy_end = FakeAiEvent("block", 0.25, 0.9, 0.0, "end")
+        self.assertIsNone(await send_ai_demo(
+            hub, 0, legacy_end, DEFAULT_ACTION_MAP, 1.0, attack_id="legacy-end"))
+        self.assertTrue(engine.snapshot()["player_1"]["is_blocking"])
+        clock.advance(1.0)
         self.assertFalse(engine.snapshot()["player_1"]["is_blocking"])
+        self.assertFalse(engine.try_attack(1, "JAB"))
+        clock.advance(ACTION_COOLDOWN_SECONDS - 1.0)
+        self.assertTrue(engine.try_attack(1, "JAB"))
 
     async def test_guard_and_round_transitions_match_phone_schemas(self):
         try:

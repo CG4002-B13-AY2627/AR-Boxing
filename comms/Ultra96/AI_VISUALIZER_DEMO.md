@@ -277,7 +277,7 @@ python3 ai_to_visualizer_demo.py --source fpga-noise --ai-dir /home/xilinx/ai/de
 ```
 
 AI labels map to punches by `DEFAULT_ACTION_MAP` (override with
-`--action-map file.json`); `block` start/end edges become guards, `pickup`
+`--action-map file.json`); a single `block` event activates a timed guard, `pickup`
 becomes a pickup action, `weave` becomes a weave when its confidence is at
 least 0.8 (a false weave is expensive), and `idle`, `use` are ignored.
 `--fake-action weave` injects weaves from the fake source.
