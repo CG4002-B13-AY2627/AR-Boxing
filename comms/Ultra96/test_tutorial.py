@@ -55,6 +55,22 @@ class TutorialEngineTests(unittest.TestCase):
         self.assertEqual(engine.players[2].health, 100.0, "the bag refills")
         self.assertEqual(engine.phase, "FIGHTING")
 
+    def test_stamina_regenerates_three_times_faster(self):
+        from game_engine import STAMINA_REGEN_PER_SECOND, TUTORIAL_REGEN_MULTIPLIER
+        self.assertEqual(TUTORIAL_REGEN_MULTIPLIER, 3.0)
+        engine = tutorial_fighting()
+        engine.players[1].stamina = 40.0
+        engine.clock.advance(2.0)
+        engine.advance()
+        self.assertEqual(engine.players[1].stamina, 40.0 + 2.0 * STAMINA_REGEN_PER_SECOND * 3.0)
+
+        match = to_fighting(joined(players=(1,), required=1), players=(1,))
+        match.players[1].stamina = 40.0
+        match.clock.advance(2.0)
+        match.advance()
+        self.assertEqual(match.players[1].stamina, 40.0 + 2.0 * STAMINA_REGEN_PER_SECOND,
+                         "a normal match keeps the slow regen")
+
     def test_untracked_punches_still_miss(self):
         engine = tutorial_fighting()
         self.assertEqual(engine.resolve_punch(1, "JAB", 1.0, tracked=False), ("MISS", 0.0))

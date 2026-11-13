@@ -43,7 +43,8 @@ any tutorial phase --EXIT_TUTORIAL, or that phone leaves--> LOBBY (new match)
 
 `MatchState.mode` is `TUTORIAL` throughout and `tutorial_player` names the
 player doing it. The other slot plays a punching
-bag: the round clock stops, health refills to 100 instead of a KO, and
+bag: the round clock stops, health refills to 100 instead of a KO, stamina
+regenerates 3x faster (`TUTORIAL_REGEN_MULTIPLIER`, 12/s), and
 punches resolve normally (a punch with the marker out of view still MISSes).
 `PRACTICE_PUNCH` makes the bag punch back 1.5 s later (JAB, LEFT_HOOK,
 LEFT_UPPERCUT in turn): BLOCK if the player is guarding then, else HIT.

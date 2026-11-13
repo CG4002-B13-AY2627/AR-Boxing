@@ -31,6 +31,9 @@ ANIMATION_SECONDS = {
     "LEFT_UPPERCUT": 1.0, "RIGHT_UPPERCUT": 1.0,
 }
 STAMINA_REGEN_PER_SECOND = 4.0
+# The tutorial regenerates stamina this many times faster, so a player trying
+# out moves is never held back by the match economy (costs are unchanged).
+TUTORIAL_REGEN_MULTIPLIER = 3.0
 # Action cooldown (CG4002-Viz docs/protocol.md "Action cooldown"): every accepted
 # move (punch, guard, weave) starts it, and no punch is accepted until it ends.
 # Guard and weave stay available, so a player can always defend. A weave's
@@ -452,6 +455,7 @@ class GameEngine:
             active = (elapsed if self.god_mode and not self.tutorial else
                       min(elapsed, self.round_time))
             started = now - elapsed
+            regen = STAMINA_REGEN_PER_SECOND * (TUTORIAL_REGEN_MULTIPLIER if self.tutorial else 1.0)
             for player in self.players.values():
                 weaving = max(0.0, min(now, player.weave_until) - started)
                 guarding = (max(0.0, min(started + active, player.guard_until) - started)
@@ -463,7 +467,7 @@ class GameEngine:
                 # mid-step, regeneration resumes for the remainder.
                 recovery_time = max(0.0, active - weaving - drain_time)
                 player.stamina = round(min(100.0, player.stamina +
-                                           recovery_time * STAMINA_REGEN_PER_SECOND -
+                                           recovery_time * regen -
                                            drain_time * HELD_GUARD_COST_PER_SECOND), 2)
                 if now >= player.guard_until or exhausted:
                     player.guard_until = 0.0
