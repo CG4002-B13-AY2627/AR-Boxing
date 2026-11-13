@@ -67,12 +67,11 @@ class EngineRestartTests(unittest.TestCase):
         engine.set_connected(2, True)
         self.assertEqual(engine.phase, "LOBBY", "the leaver comes back to the lobby")
 
-    def test_everyone_leaving_the_result_resets(self):
+    def test_leaving_the_result_resets_without_a_restart_vote(self):
         engine = to_match_end(joined())
         engine.set_connected(1, False)
-        self.assertEqual(engine.phase, "MATCH_END", "P2 is still looking at the result")
-        engine.set_connected(2, False)
         self.assertEqual(engine.phase, "LOBBY")
+        self.assertEqual(engine.match_number, 2)
 
     def test_either_player_restarts_from_pause_at_once(self):
         engine = to_fighting(joined())
@@ -133,6 +132,43 @@ class EngineRestartTests(unittest.TestCase):
 
 
 class HubRestartTests(unittest.IsolatedAsyncioTestCase):
+    async def test_leaving_match_end_closes_the_peer_and_frees_both_slots(self):
+        for leaving, peer_voted in ((1, False), (2, True)):
+            with self.subTest(leaving=leaving, peer_voted=peer_voted):
+                hub = PhoneHub(engine=GameEngine(clock=FakeClock()))
+                async with websockets.serve(hub.handle, "127.0.0.1", 0) as server:
+                    url = "ws://127.0.0.1:" + str(server.sockets[0].getsockname()[1])
+                    phones = {}
+                    for player in (1, 2):
+                        phones[player] = Phone(await websockets.connect(url), player)
+                        await phones[player].join()
+                    await phones[1].state_where(lambda s: s["player_2"]["connected"])
+                    peer = 3 - leaving
+                    to_match_end(hub.engine)
+                    await hub.broadcast_state()
+                    if peer_voted:
+                        await phones[peer].send("RESTART")
+                        await phones[leaving].state_where(
+                            lambda s: s[f"player_{peer}"]["ready"])
+
+                    await phones[leaving].socket.close()
+                    await asyncio.wait_for(phones[peer].socket.wait_closed(), 3)
+                    self.assertEqual(phones[peer].socket.close_code, 1000)
+                    self.assertEqual(hub.active, {})
+                    self.assertEqual(hub.ready, {})
+                    self.assertEqual(hub.engine.match_number, 2)
+                    for player in hub.engine.players.values():
+                        self.assertFalse(player.connected)
+                        self.assertEqual(player.health, 100.0)
+
+                    for player in (1, 2):
+                        phones[player] = Phone(await websockets.connect(url), player)
+                        await phones[player].join()
+                    lobby = await phones[1].state_where(
+                        lambda s: s["state"] == "LOBBY" and s["player_2"]["connected"])
+                    self.assertTrue(lobby["player_1"]["connected"])
+                    self.assertEqual(lobby["match_result"], "PENDING")
+
     async def test_a_pending_punch_misses_and_ledgers_are_pruned(self):
         engine = to_fighting(joined())
         hub = PhoneHub(engine=engine)

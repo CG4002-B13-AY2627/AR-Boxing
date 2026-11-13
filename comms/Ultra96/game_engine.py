@@ -149,7 +149,7 @@ class GameEngine:
     LOBBY -all READY-> CALIBRATING -all CALIBRATED-> COUNTDOWN -timer-> FIGHTING
     FIGHTING -PAUSE or disconnect-> PAUSED -all RESUME-> COUNTDOWN
     FIGHTING -KO or time-> ROUND_END -2 s-> MATCH_END
-    MATCH_END -every connected player RESTART ("Play again"), or nobody left-> LOBBY
+    MATCH_END -every connected player RESTART ("Play again"), or a disconnect-> LOBBY
     PAUSED -any one player RESTART-> LOBBY
     Tutorial (any server, one player at a time), mode TUTORIAL throughout:
     LOBBY -START_TUTORIAL-> CALIBRATING -CALIBRATED-> FIGHTING (no countdown)
@@ -267,7 +267,7 @@ class GameEngine:
             return
         self.pause()
         if self.phase == "MATCH_END":
-            self._reset_if_everyone_is_done()
+            self.reset_match()
 
     def reset_match(self):
         """Start a fresh match in LOBBY on the same stream.
@@ -298,7 +298,7 @@ class GameEngine:
 
     def _reset_if_everyone_is_done(self):
         connected = [p for p in self.players.values() if p.connected]
-        if all(p.ready for p in connected):     # also true when nobody is left
+        if all(p.ready for p in connected):
             self.reset_match()
 
     def command(self, player_id, command):

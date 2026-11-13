@@ -284,28 +284,38 @@ class PhoneHub:
         return True
 
     async def release(self, player_id, websocket):
-        if self.active.get(player_id) is websocket:
-            del self.active[player_id]
-        was_ready = self.ready.get(player_id) is websocket
-        if self.ready.get(player_id) is websocket:
+        peers = ()
+        async with self.broadcast_lock:
+            if self.active.get(player_id) is websocket:
+                del self.active[player_id]
+            for record in self.pending.values():
+                if record.bound_socket is websocket:
+                    record.bound_socket = None
+            if self.ready.get(player_id) is not websocket:
+                return
             del self.ready[player_id]
-        for record in self.pending.values():
-            if record.source_player == player_id and record.bound_socket is websocket:
-                record.bound_socket = None
-        if was_ready:
-            async with self.broadcast_lock:
+            match = self.engine.match_number
+            match_ended = self.engine.phase == "MATCH_END"
+            if match_ended:
+                peers = tuple(self.active.values())
+                self.active.clear()
+                self.ready.clear()
+                for record in self.pending.values():
+                    record.bound_socket = None
+            else:
                 # A pending pickup check can't be answered now: time it out
                 # without consuming the item.
                 request_id = self.pending_pickups.get(player_id)
                 if request_id is not None:
                     self._resolve_pickup_locked(self.pickups[request_id], "OBSERVATION_TIMEOUT")
-                # Mid-fight (or countdown) this pauses; ready flags drop either way.
-                # At MATCH_END the last one out (or the last holdout) resets the match.
-                match = self.engine.match_number
-                self.engine.set_connected(player_id, False)
-                await self._after_reset_locked(match)
-                await self._broadcast_transitions_locked()
-                await self.broadcast(self.state())
+            self.engine.set_connected(player_id, False)
+            if match_ended:
+                self.engine.set_connected(3 - player_id, False)
+            await self._after_reset_locked(match)
+            await self._broadcast_transitions_locked()
+            await self.broadcast(self.state())
+        for peer in peers:
+            await peer.close(code=1000, reason="Opponent left after match")
 
     def welcome(self, player_id):
         return {
@@ -318,7 +328,7 @@ class PhoneHub:
             "supports_tutorial": True,
         }
 
-    async def player_command(self, player_id, client_id, raw):
+    async def player_command(self, player_id, client_id, raw, websocket=None):
         """Apply one PlayerCommand from a bound phone. Invalid, foreign or
         repeated commands are ignored (never a socket close), per protocol.md."""
         command = decode_command(raw)
@@ -328,11 +338,13 @@ class PhoneHub:
                 command["stream_id"] != self.stream_id):
             print(f"[COMMAND] ignored invalid or foreign command from P{player_id}", flush=True)
             return False
-        recent = self.command_ids[player_id]
-        if command["command_id"] in recent:
-            return False   # a retry of something already applied
-        recent.append(command["command_id"])
         async with self.broadcast_lock:
+            if websocket is not None and self.ready.get(player_id) is not websocket:
+                return False
+            recent = self.command_ids[player_id]
+            if command["command_id"] in recent:
+                return False   # a retry of something already applied
+            recent.append(command["command_id"])
             match = self.engine.match_number
             changed = self.engine.command(player_id, command["command"])
             print(f"[COMMAND] P{player_id} {command['command']} -> "
@@ -465,7 +477,7 @@ class PhoneHub:
             if socket is not None:
                 await send_bounded(socket, encode(result))
 
-    async def pickup_observation(self, player_id, client_id, raw):
+    async def pickup_observation(self, player_id, client_id, raw, websocket=None):
         """Judge the phone's reach evidence; invalid or foreign input is ignored."""
         observation = decode_pickup_observation(raw)
         request = (self.pickups.get(observation["request_id"])
@@ -478,6 +490,8 @@ class PhoneHub:
             return None
         async with self.broadcast_lock:
             socket = self.ready.get(player_id)
+            if websocket is not None and socket is not websocket:
+                return None
             if request.result is not None:
                 # A retry of the same evidence replays; different evidence is ignored.
                 if request.observation in (None, observation) and socket is not None:
@@ -805,30 +819,35 @@ class PhoneHub:
                 await websocket.close(code=1008, reason="ClientHello required")
                 return
             hello = decode_hello(raw)
-            if hello is None or not self.claim(*hello, websocket):
+            if hello is None:
                 await websocket.close(code=1008, reason="Invalid or occupied player slot")
                 return
-            client_id, player_id = hello
-            self.session_serial += 1
-            session_id = self.session_serial
+            client_id, slot = hello
             async with self.broadcast_lock:
-                await send_bounded(websocket, encode(self.welcome(player_id)))
-                self.ready[player_id] = websocket
-                self.engine.set_connected(player_id, True)
-                if self.auto_start and len(self.ready) >= self.required_players:
-                    self.engine.start() or self.engine.resume()
-                # Everyone sees the new connected flag; the joiner gets its full state.
-                await self.broadcast(self.state())
+                if self.claim(client_id, slot, websocket):
+                    player_id = slot
+                    self.session_serial += 1
+                    session_id = self.session_serial
+                    await send_bounded(websocket, encode(self.welcome(player_id)))
+                    self.ready[player_id] = websocket
+                    self.engine.set_connected(player_id, True)
+                    if self.auto_start and len(self.ready) >= self.required_players:
+                        self.engine.start() or self.engine.resume()
+                    # Everyone sees the new connected flag; the joiner gets its full state.
+                    await self.broadcast(self.state())
+            if player_id is None:
+                await websocket.close(code=1008, reason="Invalid or occupied player slot")
+                return
             for record in tuple(self.pending.values()):
                 if record.source_player == player_id and not record.observation_future.done():
                     await self._send_attempt(record, websocket)
             async for raw in websocket:
                 kind = message_type(raw)
                 if kind == "PlayerCommand":
-                    await self.player_command(player_id, client_id, raw)
+                    await self.player_command(player_id, client_id, raw, websocket)
                     continue
                 if kind == "PickupObservation":
-                    await self.pickup_observation(player_id, client_id, raw)
+                    await self.pickup_observation(player_id, client_id, raw, websocket)
                     continue
                 observation = decode_observation(raw) if kind == "PunchObservation" else None
                 if observation is None:
