@@ -466,7 +466,7 @@
       <div class="stat"><b>$\mathbf{100}\,\textbf{Hz}$</b><span>$4$ IMUs, $2$ per player</span></div>
       <div class="stat b"><b>$\mathbf{4}\textbf{-bit}$</b><span>CNN on the Ultra96 FPGA</span></div>
       <div class="stat r"><b>$\mathbf{1.35}\,\textbf{ms}$</b><span>FPGA inference, on the board</span></div>
-      <div class="stat"><b>$\mathbf{97.3}\boldsymbol{\%}$</b><span>test accuracy, $4$-bit CNN</span></div>
+      <div class="stat"><b>$\mathbf{97.9}\boldsymbol{\%}$</b><span>test accuracy, $4$-bit CNN</span></div>
       <div class="stat b"><b>$\boldsymbol{{\le}\,50}\,\textbf{ms}$</b><span>latency budget</span></div>
     </div>
   </header>
@@ -638,7 +638,7 @@
               <div><b>$7.9\%$</b><span>LUT</span></div>
               <div><b>$4.0\%$</b><span>FF</span></div>
             </div>
-            <p class="fine">At $100\,\text{MHz}$: $1.35\,\text{ms}$ per window on the board, $3.60\,\text{ns}$ timing slack, $0.12\,\text{W}$ for the whole PL.</p>
+            <p class="fine">At $100\,\text{MHz}$: $1.35\,\text{ms}$ per window on the board, $4.36\,\text{ns}$ timing slack, $0.12\,\text{W}$ for the whole PL.</p>
           </div>
         </div>
       </div>
@@ -830,12 +830,12 @@
           <div class="card-top"><h3>AI</h3><span class="tag">Brevitas · HLS · Vivado</span></div>
           <p class="role">Recognises $10$ classes on the FPGA.</p>
           <ul>
-            <li>QAT sweeps $8$ to $4$ bits; the narrowest width within $5$ points of FP32 ships</li>
-            <li>The FPGA matches training bit for bit on $800$ held-out test windows</li>
+            <li>QAT sweeps $8$ to $4$ bits; the narrowest width within $2$ points of FP32 ships</li>
+            <li>The FPGA matches training bit for bit on $934$ held-out test windows</li>
           </ul>
           <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
           <div class="cap">Channels $\times$ time. ReLU after both convs and the first fc. $10{,}570$ parameters.</div>
-          <div class="metric"><b>$97.3\%$</b><span>test accuracy at $4$ bits (FP32: $99.4\%$)</span></div>
+          <div class="metric"><b>$97.9\%$</b><span>test accuracy at $4$ bits (FP32: $99.4\%$)</span></div>
         </article>
       </div>
     </section>

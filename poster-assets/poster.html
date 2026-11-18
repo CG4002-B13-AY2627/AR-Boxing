@@ -458,11 +458,11 @@
       <p class="tagline">Throw real punches. Land them in augmented reality. Players never touch.</p>
     </div>
     <div class="stats">
-      <div class="stat r"><b>$\mathbf{10}$</b><span>moves recognised</span></div>
+      <div class="stat r"><b>$\mathbf{9}$</b><span>moves recognised</span></div>
       <div class="stat"><b>$\mathbf{100}\,\textbf{Hz}$</b><span>$4$ IMUs, $2$ per player</span></div>
-      <div class="stat b"><b>$\mathbf{5}\textbf{-bit}$</b><span>CNN on the Ultra96</span></div>
-      <div class="stat r"><b>$\mathbf{0.88}\,\textbf{ms}$</b><span>FPGA inference</span></div>
-      <div class="stat"><b>$\mathbf{10{,}603}$</b><span>CNN parameters</span></div>
+      <div class="stat b"><b>$\mathbf{4}\textbf{-bit}$</b><span>CNN on the Ultra96</span></div>
+      <div class="stat r"><b>$\mathbf{1.13}\,\textbf{ms}$</b><span>FPGA inference</span></div>
+      <div class="stat"><b>$\mathbf{10{,}570}$</b><span>CNN parameters</span></div>
       <div class="stat b"><b>$\boldsymbol{{\le}\,50}\,\textbf{ms}$</b><span>latency budget</span></div>
     </div>
   </header>
@@ -477,7 +477,7 @@
         <div class="howto">
           <div><div class="k"><i>$1$</i>Gear up</div><span>Strap on both gloves, pin on the tag, open the app.</span></div>
           <div><div class="k"><i>$2$</i>Fight</div><span>Punch, block, weave. A hit counts only if your phone sees the tag.</span></div>
-          <div><div class="k"><i>$3$</i>Win</div><span>Take them to $0$ health, or lead after $90\,\text{s}$.</span></div>
+          <div><div class="k"><i>$3$</i>Win</div><span>Take them to $0$ health, or lead after $180\,\text{s}$.</span></div>
         </div>
       </div>
 
@@ -486,7 +486,7 @@
         <ul class="feats">
           <li><svg viewBox="0 0 24 24" fill="none" stroke="#C8232C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><path d="M5 12H1M23 12h-4M12 5V1"/></svg><div><b>Real punches</b>No controller. Your wrists are the input.</div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="#C8232C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="4"/><circle cx="17" cy="12" r="4"/></svg><div><b>Both hands</b>Left and right punches are told apart.</div></li>
-          <li><svg viewBox="0 0 24 24" fill="none" stroke="#DD6B20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><div><b>AI on the FPGA</b>A $5$-bit CNN in hardware names each move.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#DD6B20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><div><b>AI on the FPGA</b>A $4$-bit CNN in hardware names each move.</div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="#16171B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg><div><b>Fair by design</b>Only the Ultra96 sets health and stamina.</div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="#1F5FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M7 7h4v4H7zM13 13h4v4h-4zM13 7h4M7 15h4"/></svg><div><b>AprilTag lock</b>Your phone tracks the opponent you aim at.</div></li>
           <li><svg viewBox="0 0 24 24" fill="none" stroke="#1F5FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="17" rx="10" ry="4"/><path d="M12 3v10M8 7l4-4 4 4"/></svg><div><b>Floor arena + HUD</b>Health, stamina, timer and hit effects.</div></li>
@@ -512,29 +512,29 @@
     <section class="moves">
       <div class="lead">
         <div class="ptitle">The move set</div>
-        <p><b>$10$ moves, $11$ classes.</b> The CNN tells left from right, so a straight, hook or uppercut each comes in two classes.</p>
+        <p><b>$9$ moves, $10$ classes.</b> The CNN tells left from right, so a straight, hook or uppercut each comes in two classes.</p>
         <p>An <b>idle</b> class soaks up footwork, so it never fires a punch. Everyone starts with $100$ health and $100$ stamina.</p>
       </div>
 
       <div class="move"><span class="hand">L</span>
         <svg viewBox="0 0 64 40"><g stroke="#16171B" stroke-width="1.3" stroke-linecap="round" fill="none"><path d="M8,16 H24 M4,20 H26 M8,24 H24" opacity="0.45"/><path d="M28,20 H44" marker-end="url(#mv)"/></g><circle cx="52" cy="20" r="7" fill="#C8232C"/></svg>
-        <div class="mn">Jab</div><div class="mc">l_straight</div><div class="me">$5$ damage<br>$8$ stamina</div></div>
+        <div class="mn">Jab</div><div class="mc">l_straight</div><div class="me">$3$ damage<br>$10$ stamina</div></div>
 
       <div class="move"><span class="hand">R</span>
         <svg viewBox="0 0 64 40"><g stroke="#16171B" stroke-width="1.3" stroke-linecap="round" fill="none"><path d="M4,13 H22 M2,20 H24 M4,27 H22" opacity="0.45"/><path d="M26,20 H44" marker-end="url(#mv)" stroke-width="1.8"/></g><circle cx="52" cy="20" r="8" fill="#C8232C"/></svg>
-        <div class="mn">Cross</div><div class="mc">r_straight</div><div class="me">$7$ damage<br>$10$ stamina</div></div>
+        <div class="mn">Cross</div><div class="mc">r_straight</div><div class="me">$4$ damage<br>$12$ stamina</div></div>
 
       <div class="move"><span class="hand">L / R</span>
         <svg viewBox="0 0 64 40"><path d="M10,34 Q8,6 40,10" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="48" cy="12" r="7" fill="#C8232C"/></svg>
-        <div class="mn">Hook</div><div class="mc">l_hook, r_hook</div><div class="me">$10$ damage<br>$15$ stamina</div></div>
+        <div class="mn">Hook</div><div class="mc">l_hook, r_hook</div><div class="me">$6$ damage<br>$16$ stamina</div></div>
 
       <div class="move"><span class="hand">L / R</span>
         <svg viewBox="0 0 64 40"><path d="M14,36 Q44,38 40,15" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="39" cy="9" r="7" fill="#C8232C"/></svg>
-        <div class="mn">Uppercut</div><div class="mc">l_ / r_uppercut</div><div class="me">$15$ damage<br>$22$ stamina</div></div>
+        <div class="mn">Uppercut</div><div class="mc">l_ / r_uppercut</div><div class="me">$8$ damage<br>$22$ stamina</div></div>
 
       <div class="move def">
         <svg viewBox="0 0 64 40"><circle cx="32" cy="17" r="11" fill="#16171B"/><rect x="27" y="27" width="10" height="13" fill="#16171B"/><ellipse cx="26" cy="20" rx="7" ry="9" fill="#1F5FA8" stroke="#fff" stroke-width="1.2"/><ellipse cx="38" cy="20" rx="7" ry="9" fill="#1F5FA8" stroke="#fff" stroke-width="1.2"/></svg>
-        <div class="mn">Block</div><div class="mc">block</div><div class="me">damage $\times\,0.3$<br>$8$ stamina, $1\,\text{s}$</div></div>
+        <div class="mn">Block</div><div class="mc">block</div><div class="me">damage $\times\,0.25$<br>$8$ stamina, $1\,\text{s}$</div></div>
 
       <div class="move def">
         <svg viewBox="0 0 64 40"><path d="M10,8 Q32,48 52,10" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="32" cy="27" r="7" fill="#1F5FA8"/><circle cx="10" cy="8" r="4" fill="none" stroke="#1F5FA8" stroke-width="1.2" opacity="0.6"/></svg>
@@ -544,9 +544,9 @@
         <svg viewBox="0 0 64 40"><ellipse cx="32" cy="34" rx="16" ry="4" fill="#FBF0D5" stroke="#E7A615" stroke-width="1.2"/><path d="M32,27 v5 M29.5,31 h5" stroke="#E7A615" stroke-width="1.6"/><path d="M32,4 V18" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#mv)"/><circle cx="20" cy="9" r="6" fill="#C8232C"/></svg>
         <div class="mn">Pickup</div><div class="mc">pickup</div><div class="me">Grab a boost<br>off the floor</div></div>
 
-      <div class="move itm">
-        <svg viewBox="0 0 64 40"><circle cx="32" cy="22" r="8" fill="#C8232C"/><g stroke="#E7A615" stroke-width="1.8" stroke-linecap="round"><path d="M32,3 v6 M32,35 v4 M13,22 h6 M45,22 h6 M18.5,8.5 l4,4 M45.5,8.5 l-4,4 M18.5,35.5 l4,-4 M45.5,35.5 l-4,-4"/></g></svg>
-        <div class="mn">Use</div><div class="mc">use</div><div class="me">Spend the boost<br>you are holding</div></div>
+      <div class="move" style="border-top-color: var(--muted)">
+        <svg viewBox="0 0 64 40"><circle cx="32" cy="20" r="11" fill="none" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" opacity="0.6"/></svg>
+        <div class="mn">Idle</div><div class="mc">idle</div><div class="me">Guard and footwork,<br>never fires</div></div>
     </section>
 
     <!-- ================= ARCHITECTURE ================= -->
@@ -609,9 +609,9 @@
             <div class="t small ctr" style="left:112mm; top:124.5mm; width:54mm; color:var(--red); font-weight:600">ACTUATE: vibrate</div>
 
             <!-- Ultra96 -->
-            <div class="t ps" style="left:178mm; top:22mm"><span class="m" style="position:static">PS: ARM CPU</span><br>Pair left and right by time<br>$320\,\text{ms}$ window, every $40\,\text{ms}$<br>Normalise $\to$ $5$-bit integers<br>Confidence gate $\to$ one action</div>
-            <div class="t" style="left:280mm; top:22mm; line-height:8.5mm"><span class="m" style="position:static; color:#DD6B20">PL: FPGA</span><b style="font-size:6.6mm; line-height:8mm">1D-CNN<br>accelerator</b>$5$-bit weights, HLS<br>bit-exact with training</div>
-            <div class="t eng" style="left:179mm; top:91mm"><span class="m" style="position:static; color:var(--gold)">Game engine: decides every outcome</span><b>Health, stamina, guard, round timer</b>Base damage: jab $5$, cross $7$, hook $10$, uppercut $15$<br>Blocking cuts damage to $30\%$, rounds last $90\,\text{s}$</div>
+            <div class="t ps" style="left:178mm; top:22mm"><span class="m" style="position:static">PS: ARM CPU</span><br>Pair left and right by time<br>$320\,\text{ms}$ window, every $40\,\text{ms}$<br>Normalise $\to$ $4$-bit integers<br>Confidence gate $\to$ one action</div>
+            <div class="t" style="left:280mm; top:22mm; line-height:8.5mm"><span class="m" style="position:static; color:#DD6B20">PL: FPGA</span><b style="font-size:6.6mm; line-height:8mm">1D-CNN<br>accelerator</b>$4$-bit weights, HLS<br>bit-exact with training</div>
+            <div class="t eng" style="left:179mm; top:91mm"><span class="m" style="position:static; color:var(--gold)">Game engine: decides every outcome</span><b>Health, stamina, guard, round timer</b>Base damage: jab $3$, cross $4$, hook $6$, uppercut $8$<br>Blocking cuts damage to $25\%$, rounds last $180\,\text{s}$</div>
 
             <!-- laptop + WSS -->
             <div class="t small ctr" style="left:388mm; top:74mm; width:28mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
@@ -640,12 +640,12 @@
           <div class="panel">
             <h4>On the FPGA (XCZU3EG)</h4>
             <div class="bars">
-              <div class="bar"><span class="lbl">DSP</span><span class="trk"><i style="width:78.89%"></i></span><span class="v">$78.9\%$</span></div>
-              <div class="bar"><span class="lbl">BRAM</span><span class="trk"><i style="width:19.91%"></i></span><span class="v">$19.9\%$</span></div>
-              <div class="bar"><span class="lbl">LUT</span><span class="trk"><i style="width:13.03%"></i></span><span class="v">$13.0\%$</span></div>
-              <div class="bar"><span class="lbl">FF</span><span class="trk"><i style="width:6.33%"></i></span><span class="v">$6.3\%$</span></div>
+              <div class="bar"><span class="lbl">DSP</span><span class="trk"><i style="width:43.61%"></i></span><span class="v">$43.6\%$</span></div>
+              <div class="bar"><span class="lbl">BRAM</span><span class="trk"><i style="width:15.74%"></i></span><span class="v">$15.7\%$</span></div>
+              <div class="bar"><span class="lbl">LUT</span><span class="trk"><i style="width:7.87%"></i></span><span class="v">$7.9\%$</span></div>
+              <div class="bar"><span class="lbl">FF</span><span class="trk"><i style="width:4.00%"></i></span><span class="v">$4.0\%$</span></div>
             </div>
-            <p class="fine">Timing met at $100\,\text{MHz}$ with $0.89\,\text{ns}$ slack. Vivado&rsquo;s vectorless estimate is $2.21\,\text{W}$ on chip.</p>
+            <p class="fine">Timing met at $100\,\text{MHz}$ with $4.36\,\text{ns}$ slack. Vivado&rsquo;s vectorless estimate is $2.14\,\text{W}$ on chip.</p>
           </div>
         </div>
       </div>
@@ -660,13 +660,13 @@
       </div>
       <div class="pipe">
         <div class="chain">
-          <div class="stg hw"><div class="hd">Glove<s>$1$</s></div><div class="bd"><b>Sense</b><span>MPU6050 reads accel at $\pm 2\,g$ and gyro at $\pm 250^{\circ}/\text{s}$, through a low-pass filter.</span><div class="kpi">$10\,\text{ms}$<small>per sample</small></div></div></div>
+          <div class="stg hw"><div class="hd">Glove<s>$1$</s></div><div class="bd"><b>Sense</b><span>MPU6050 reads accel at $\pm 16\,g$ and gyro at $\pm 2000^{\circ}/\text{s}$, through a low-pass filter.</span><div class="kpi">$10\,\text{ms}$<small>per sample</small></div></div></div>
           <div class="stg hw"><div class="hd">Glove<s>$2$</s></div><div class="bd"><b>Relay</b><span>The left glove sends to the right over ESP-NOW. The right glove stamps both with one clock.</span><div class="kpi">$1$ link<small>per player</small></div></div></div>
           <div class="stg cm"><div class="hd">Comms<s>$3$</s></div><div class="bd"><b>Transmit</b><span>A framed, checksummed packet goes over TLS to the Ultra96. Silent gloves are dropped.</span><div class="kpi">$26\,\text{B}$<small>per sample pair</small></div></div></div>
           <div class="stg ai"><div class="hd">AI on PS<s>$4$</s></div><div class="bd"><b>Pair</b><span>Left and right samples are matched by timestamp into one $12$-channel row.</span><div class="kpi">$\pm 5\,\text{ms}$<small>pairing tolerance</small></div></div></div>
-          <div class="stg ai"><div class="hd">AI on PS<s>$5$</s></div><div class="bd"><b>Window</b><span>The last $32$ rows are normalised and rounded to $5$-bit integers.</span><div class="kpi">$320\,\text{ms}$<small>every $40\,\text{ms}$</small></div></div></div>
-          <div class="stg ai"><div class="hd">AI on PL<s>$6$</s></div><div class="bd"><b>Infer</b><span>The FPGA runs the CNN and returns $11$ class scores.</span><div class="kpi">$0.88\,\text{ms}$<small>HLS, $88{,}193$ cycles</small></div></div></div>
-          <div class="stg ai"><div class="hd">AI on PS<s>$7$</s></div><div class="bd"><b>Decide</b><span>Softmax, then a confidence gate and a refractory period turn windows into one action.</span><div class="kpi">$p \ge 0.60$<small>to emit an action</small></div></div></div>
+          <div class="stg ai"><div class="hd">AI on PS<s>$5$</s></div><div class="bd"><b>Window</b><span>The last $32$ rows are normalised and rounded to $4$-bit integers.</span><div class="kpi">$320\,\text{ms}$<small>every $40\,\text{ms}$</small></div></div></div>
+          <div class="stg ai"><div class="hd">AI on PL<s>$6$</s></div><div class="bd"><b>Infer</b><span>The FPGA runs the CNN and returns $10$ class scores.</span><div class="kpi">$1.13\,\text{ms}$<small>HLS, $112{,}766$ cycles</small></div></div></div>
+          <div class="stg ai"><div class="hd">AI on PS<s>$7$</s></div><div class="bd"><b>Decide</b><span>Softmax, then a confidence gate and a refractory period turn windows into one action.</span><div class="kpi">$p \ge 0.90$<small>to emit an action</small></div></div></div>
           <div class="stg ge"><div class="hd">Engine<s>$8$</s></div><div class="bd"><b>Resolve</b><span>Checks stamina and guard, asks the attacker&rsquo;s phone if the target is in view, applies damage.</span><div class="kpi">$\le 750\,\text{ms}$<small>for the phone to reply</small></div></div></div>
           <div class="stg vz"><div class="hd">Phones<s>$9$</s></div><div class="bd"><b>Show + feel</b><span>Both phones play the hit or block. The hit player&rsquo;s glove vibrates.</span><div class="kpi">$2$ phones<small>same state, same time</small></div></div></div>
         </div>
@@ -679,7 +679,7 @@
               <div class="p"><span>PS: $8\,\text{ms}$</span></div>
               <div class="l">PL</div>
             </div>
-            <div class="ticks"><span>$0$</span><span>PL: $2\,\text{ms}$ budget, $0.88\,\text{ms}$ estimated &nbsp;&middot;&nbsp; total $50\,\text{ms}$</span></div>
+            <div class="ticks"><span>$0$</span><span>PL: $2\,\text{ms}$ budget, $1.37\,\text{ms}$ measured &nbsp;&middot;&nbsp; total $50\,\text{ms}$</span></div>
           </div>
         </div>
 
@@ -702,17 +702,17 @@
           </div>
           <div class="box">
             <h4><span class="pill cm">Comms</span><span class="pill ai">AI</span>Normalise and quantise</h4>
-            <div class="eq">$q_c = \operatorname{clip}\!\left(\left\lfloor 2\,\dfrac{x_c-\mu_c}{\sigma_c} \right\rceil,\,-16,\,15\right)$</div>
+            <div class="eq">$q_c = \operatorname{clip}\!\left(\left\lfloor \dfrac{x_c-\mu_c}{\sigma_c} \right\rceil,\,-8,\,7\right)$</div>
             Each of the $12$ channels uses the mean $\mu_c$ and spread $\sigma_c$ of the training data. Every scale is a power of two, so the FPGA rescales with bit shifts.
           </div>
           <div class="box">
             <h4><span class="pill ai">AI</span><span class="pill ge">Engine</span>Window to action</h4>
-            <div class="eq">$\hat{y} = \arg\max_k\, p_k,\quad p_{\hat{y}} \ge 0.60$</div>
-            A punch spans $4$ to $6$ windows, so one event fires per $150\,\text{ms}$. Block is sent as start and end, ending after $2$ quiet windows.
+            <div class="eq">$\hat{y} = \arg\max_k\, p_k,\quad p_{\hat{y}} \ge 0.90$</div>
+            A punch spans $4$ to $6$ windows, so one event fires per $150\,\text{ms}$. Block is one event, and the game holds the guard for $1\,\text{s}$.
           </div>
           <div class="box">
             <h4><span class="pill ge">Engine</span><span class="pill vz">Viz</span>Damage rule</h4>
-            <div class="eq">$D = D_{\text{base}} \cdot k \cdot \begin{cases} 0.3 & \text{blocked} \\ 1 & \text{otherwise} \end{cases}$</div>
+            <div class="eq">$D = D_{\text{base}} \cdot k \cdot \begin{cases} 0.25 & \text{blocked} \\ 1 & \text{otherwise} \end{cases}$</div>
             $k$ scales with punch intensity. If the attacker&rsquo;s phone cannot see the tag, the punch is a miss and deals $0$.
           </div>
         </div>
@@ -825,7 +825,7 @@
           <div class="card-top"><h3>Hardware</h3><span class="tag sc">ESP32, MPU6050</span></div>
           <p class="role">Two gloves per player, no room sensors.</p>
           <ul>
-            <li>$6$-axis IMU on each wrist: $\pm 2\,g$ accel, $\pm 250^{\circ}/\text{s}$ gyro</li>
+            <li>$6$-axis IMU on each wrist: $\pm 16\,g$ accel, $\pm 2000^{\circ}/\text{s}$ gyro</li>
             <li>Left glove relays through the right glove over ESP-NOW</li>
             <li>Only the right glove joins Wi-Fi, so each player needs one TLS session</li>
             <li>Vibration motor at about $70\%$ PWM, pulsed by the Ultra96</li>
@@ -847,14 +847,14 @@
 
         <article class="card ai">
           <div class="card-top"><h3>AI</h3><span class="tag sc">Brevitas, hls, Vivado</span></div>
-          <p class="role">Recognises $11$ classes on the FPGA.</p>
+          <p class="role">Recognises $10$ classes on the FPGA.</p>
           <ul>
-            <li>Quantisation-aware training swept $8$ to $4$ bits; $5$ bits ships</li>
+            <li>Quantisation-aware training swept $8$ to $4$ bits; $4$ bits ships</li>
             <li>The HLS build matches the trained model bit for bit on golden vectors</li>
           </ul>
-          <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$11$</span></div></div>
-          <div class="cap">Channels $\times$ time. ReLU after both convs and the first fc. Accumulators need at most $17$ bits.</div>
-          <div class="metric"><b>$0.88\,\text{ms}$</b><span>per window on the FPGA, against a $2\,\text{ms}$ budget</span></div>
+          <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
+          <div class="cap">Channels $\times$ time. ReLU after both convs and the first fc. Accumulators need at most $15$ bits.</div>
+          <div class="metric"><b>$1.13\,\text{ms}$</b><span>per window on the FPGA, against a $2\,\text{ms}$ budget</span></div>
         </article>
       </div>
     </section>
@@ -869,7 +869,7 @@
       <div class="designs">
         <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b>The game engine runs on the Ultra96. A phone only reports <em>whether it can see the opponent</em>, so lost tracking or a slow phone can&rsquo;t change the score.</div>
         <div class="design"><div class="pills"><span class="pill hw">HW</span><span class="pill cm">Comms</span></div><b>Gateway glove</b>The left glove talks only to the right one over ESP-NOW. That gives <em>one TLS handshake and one clock</em> per player, so both wrists line up in time.</div>
-        <div class="design"><div class="pills"><span class="pill ai">AI</span></div><b>Gate, don&rsquo;t vote</b>Overlapping windows see the same punch $4$ to $6$ times. A <em>$0.60$ confidence gate and a $150\,\text{ms}$ refractory</em> make it fire once.</div>
+        <div class="design"><div class="pills"><span class="pill ai">AI</span></div><b>Gate, don&rsquo;t vote</b>Overlapping windows see the same punch $4$ to $6$ times. A <em>$0.90$ confidence gate and a $150\,\text{ms}$ refractory</em> make it fire once.</div>
         <div class="design"><div class="pills"><span class="pill ai">AI</span><span class="pill hw">FPGA</span></div><b>Powers of two</b>Every quantiser scale is $2^{-n}$, so rescaling is a <em>bit shift, not a multiply</em>. That leaves the DSPs for the convolutions.</div>
       </div>
     </section>
