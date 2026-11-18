@@ -25,16 +25,46 @@ A two-player, non-contact AR boxing game built for NUS CG4002 (AY26/27). Each pl
 - **Gesture classes:** left/right straight, left/right hook, left/right uppercut, block, weave, pickup and idle.
 - **Dashboard:** the live server serves a status page on port 8890 (phone sessions, glove streams, aligned samples, FPGA activity).
 
+## Directory structure of B13
+
+```text
+B13/
+├── README.md                      this file
+├── B13_CG4002_Design_Report.pdf   final design report
+├── B13_CG4002_Poster.pdf          final project poster
+├── B13_CG4002_Video.txt           YouTube link to the demo video
+├── B13_CG4002_Training_Dataset/
+│   └── mike-tyson.csv             team-recorded gesture dataset used for training
+└── B13_CG4002_src/                all submitted source code
+    ├── ai/
+    │   ├── data-conversion/       turns raw glove recordings into a training CSV
+    │   ├── pipeline/              train -> quantize -> check -> export -> HLS -> Vivado bitstream
+    │   │   ├── train/             1D CNN model, data loading, training (data/ holds the CSV)
+    │   │   ├── export/            integer model export and bit-exact checks against Brevitas
+    │   │   ├── fpga/              HLS and Vivado projects for the accelerator
+    │   │   ├── scripts/           per-stage .sh/.bat wrappers
+    │   │   └── test/              offline and live model tests
+    │   └── ultra-96/              board-side host code (src/), verify/latency/power scripts, transfer.sh
+    ├── comms/
+    │   ├── Ultra96/               game server: live dashboard, game_engine.py, visualizer_protocol.py, tests
+    │   ├── esp/                   glove ESP32 firmware for P1 and P2 (left/right sketches)
+    │   └── laptop/                TLS certificate generators for the gloves and phones
+    └── hw/
+        └── data collection code/  MPU6050 left/right sketches and datacollection.py labeller
+```
+
+The Unity visualizer is not in this folder; it lives in the [CG4002-Viz](https://github.com/zexueteh/CG4002-Viz) repository.
+
 ## Repository layout
 
 | Path | What it is |
 |---|---|
-| [`B13_CG4002/B13_CG4002_src/`](B13_CG4002/B13_CG4002_src/) | **Final submission code.** Start here. |
-| &nbsp;&nbsp;[`ai/`](B13_CG4002/B13_CG4002_src/ai/README.md) | Dataset, training, quantization, HLS/Vivado bitstream pipeline, and the Ultra96 host code |
-| &nbsp;&nbsp;[`comms/`](B13_CG4002/B13_CG4002_src/comms/README.md) | Ultra96 game server and phone hub, glove (ESP32) firmware for P1/P2, certificate tools |
-| &nbsp;&nbsp;[`hw/`](B13_CG4002/B13_CG4002_src/hw/) | Two-hand MPU6050 data-collection firmware and the labelling collector |
-| [`B13_CG4002/training-dataset/`](B13_CG4002/training-dataset/) | The team-recorded training CSV (`mike-tyson.csv`) |
-| [`B13_CG4002/B13_CG4002_Poster.pdf`](B13_CG4002/B13_CG4002_Poster.pdf) | Final project poster |
+| [`B13_CG4002_src/`](B13_CG4002_src/) | **Final submission code.** Start here. |
+| &nbsp;&nbsp;[`ai/`](B13_CG4002_src/ai/README.md) | Dataset, training, quantization, HLS/Vivado bitstream pipeline, and the Ultra96 host code |
+| &nbsp;&nbsp;[`comms/`](B13_CG4002_src/comms/README.md) | Ultra96 game server and phone hub, glove (ESP32) firmware for P1/P2, certificate tools |
+| &nbsp;&nbsp;[`hw/`](B13_CG4002_src/hw/) | Two-hand MPU6050 data-collection firmware and the labelling collector |
+| [`B13_CG4002_Training_Dataset/`](B13_CG4002_Training_Dataset/) | The team-recorded training CSV (`mike-tyson.csv`) |
+| [`B13_CG4002_Poster.pdf`](B13_CG4002_Poster.pdf) | Final project poster |
 | [`CG4002-Viz/`](https://github.com/zexueteh/CG4002-Viz) | **Git submodule:** the Unity iOS AR visualizer and the protocol-v2 contracts (`contracts/`, `docs/protocol.md`) |
 | `ai/`, `ai-comms-integration/`, `comms/`, `hw/` | Development history from before the final submission folder; kept for reference |
 | `poster-assets/` | Project poster sources and exports |
@@ -56,12 +86,12 @@ For an existing clone, run `git submodule update --init CG4002-Viz` after every 
 Requirements: Python 3.12 or 3.13, Vitis HLS and Vivado 2022.1, bash (or the `.bat` beside every script on Windows).
 
 ```bash
-cd B13_CG4002/B13_CG4002_src/ai
+cd B13_CG4002_src/ai
 ./pipeline/pipeline.sh --name my-run --build A --hls-mode synth-export          # train -> check -> export -> HLS -> Vivado
 U96_JUMP=<nus-id>@stujump.comp.nus.edu.sg ./ultra-96/transfer.sh --name my-run  # copy the run to ~/ai/my-run on the board
 ```
 
-The pipeline trains an FP32 model, then quantization-aware models at 8 down to 4 bits, keeps the narrowest width within 2 percentage points of FP32, checks the integer model bit for bit against Brevitas, and builds the bitstream into `out/pipeline/<name>/`. On the board, `verify.sh`, `latency.sh`, `power.sh`, `pmanagement.sh` and `test.sh` verify, time, measure and tune the build. The training data is `pipeline/train/data/mike-tyson.csv`, recorded by the team; [`data-conversion/`](B13_CG4002/B13_CG4002_src/ai/data-conversion/README.md) turns new recordings into a training CSV. Details: [ai/README.md](B13_CG4002/B13_CG4002_src/ai/README.md), [pipeline](B13_CG4002/B13_CG4002_src/ai/pipeline/README.md), [ultra-96](B13_CG4002/B13_CG4002_src/ai/ultra-96/README.md).
+The pipeline trains an FP32 model, then quantization-aware models at 8 down to 4 bits, keeps the narrowest width within 2 percentage points of FP32, checks the integer model bit for bit against Brevitas, and builds the bitstream into `out/pipeline/<name>/`. On the board, `verify.sh`, `latency.sh`, `power.sh`, `pmanagement.sh` and `test.sh` verify, time, measure and tune the build. The training data is `pipeline/train/data/mike-tyson.csv`, recorded by the team; [`data-conversion/`](B13_CG4002_src/ai/data-conversion/README.md) turns new recordings into a training CSV. Details: [ai/README.md](B13_CG4002_src/ai/README.md), [pipeline](B13_CG4002_src/ai/pipeline/README.md), [ultra-96](B13_CG4002_src/ai/ultra-96/README.md).
 
 ### Communications and game server
 
@@ -70,7 +100,7 @@ The pipeline trains an FP32 model, then quantization-aware models at 8 down to 4
 - **Ultra96:** `esp_ai_live_dashboard_16g.py` aligns both wrists, runs FPGA inference, resolves actions in `game_engine.py` and serves the phones through `visualizer_protocol.py`.
 
 ```sh
-cd B13_CG4002/B13_CG4002_src/comms/Ultra96
+cd B13_CG4002_src/comms/Ultra96
 sudo -E python3 esp_ai_live_dashboard_16g.py --mode fpga \
   --ai-dir /home/xilinx/ai/<run> \
   --cert <esp-server.crt> --key <esp-server.key> \
@@ -78,11 +108,11 @@ sudo -E python3 esp_ai_live_dashboard_16g.py --mode fpga \
   --wait-players 2 --spawn-seconds 20
 ```
 
-`--wait-players 1` allows single-phone testing, `--spawn-seconds N` turns on automatic item spawns, and `--god-mode` keeps both players above 1 HP with the round clock frozen for guided demos. Without gloves or a board, `ai_to_visualizer_demo.py` runs the same game engine and phone hub from the keyboard or synthetic actions. Details and certificate generation: [comms/README.md](B13_CG4002/B13_CG4002_src/comms/README.md); match flow, tutorial and god mode: [AI_VISUALIZER_DEMO.md](B13_CG4002/B13_CG4002_src/comms/Ultra96/AI_VISUALIZER_DEMO.md).
+`--wait-players 1` allows single-phone testing, `--spawn-seconds N` turns on automatic item spawns, and `--god-mode` keeps both players above 1 HP with the round clock frozen for guided demos. Without gloves or a board, `ai_to_visualizer_demo.py` runs the same game engine and phone hub from the keyboard or synthetic actions. Details and certificate generation: [comms/README.md](B13_CG4002_src/comms/README.md); match flow, tutorial and god mode: [AI_VISUALIZER_DEMO.md](B13_CG4002_src/comms/Ultra96/AI_VISUALIZER_DEMO.md).
 
 ### Hardware: data collection
 
-The left and right ESP32 sketches read an MPU6050 each at about 100 Hz; the right glove prints combined rows over USB serial, and `datacollection.py` prompts for a label, user and repetition count, keeps exactly 32 samples per action and writes a dated CSV. Wiring, labels and CSV format: [hw/data collection code/README.md](<B13_CG4002/B13_CG4002_src/hw/data collection code/README.md>).
+The left and right ESP32 sketches read an MPU6050 each at about 100 Hz; the right glove prints combined rows over USB serial, and `datacollection.py` prompts for a label, user and repetition count, keeps exactly 32 samples per action and writes a dated CSV. Wiring, labels and CSV format: [hw/data collection code/README.md](<B13_CG4002_src/hw/data collection code/README.md>).
 
 ### Visualizer: iPhone AR client
 
@@ -112,7 +142,7 @@ A contract change is made in CG4002-Viz first (schemas, examples, C# models, moc
 
 ```bash
 # Game server and phone hub (final comms package); point at the contracts for schema checks
-cd B13_CG4002/B13_CG4002_src/comms
+cd B13_CG4002_src/comms
 CG4002_CONTRACTS_DIR=../../../CG4002-Viz/contracts python -m unittest discover -s Ultra96
 ```
 
@@ -120,7 +150,7 @@ The visualizer's own checks (contract validation, mock server, Unity Edit/Play M
 
 ## Security
 
-TLS secures both the glove link and the phone link. Generate fresh certificates with `B13_CG4002/B13_CG4002_src/comms/laptop/make_cert.py` (gloves) and `make_phone_cert.py` (phones), keep private keys on the Ultra96 or the laptop, and install only the public CA certificate on the phones. Never commit private keys: any key that has been committed to this repository's history must be treated as compromised and replaced.
+TLS secures both the glove link and the phone link. Generate fresh certificates with `B13_CG4002_src/comms/laptop/make_cert.py` (gloves) and `make_phone_cert.py` (phones), keep private keys on the Ultra96 or the laptop, and install only the public CA certificate on the phones. Never commit private keys: any key that has been committed to this repository's history must be treated as compromised and replaced.
 
 ## Team
 

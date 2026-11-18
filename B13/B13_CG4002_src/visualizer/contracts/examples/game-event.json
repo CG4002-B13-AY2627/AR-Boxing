@@ -1,0 +1,12 @@
+{
+  "type": "GameEvent",
+  "seq": 573,
+  "timestamp": 12345678,
+  "event": "PUNCH",
+  "source_player": 1,
+  "target_player": 2,
+  "punch": "LEFT_HOOK",
+  "confidence": 0.94,
+  "intensity": 0.81,
+  "outcome": "HIT"
+}

@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://cg4002-b13.local/schemas/game-event.schema.json",
+  "title": "GameEvent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "type",
+    "seq",
+    "timestamp",
+    "event",
+    "source_player",
+    "target_player",
+    "confidence",
+    "intensity",
+    "outcome"
+  ],
+  "properties": {
+    "type": { "const": "GameEvent" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "timestamp": { "type": "integer", "minimum": 0 },
+    "event": {
+      "type": "string",
+      "enum": ["PUNCH", "GUARD", "WEAVE", "ITEM_PICKUP", "ROUND_TRANSITION"]
+    },
+    "source_player": { "type": "integer", "enum": [1, 2] },
+    "target_player": { "type": "integer", "enum": [1, 2] },
+    "punch": {
+      "type": "string",
+      "enum": [
+        "",
+        "JAB",
+        "CROSS",
+        "LEFT_HOOK",
+        "RIGHT_HOOK",
+        "LEFT_UPPERCUT",
+        "RIGHT_UPPERCUT"
+      ]
+    },
+    "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+    "intensity": { "type": "number", "minimum": 0, "maximum": 1 },
+    "outcome": {
+      "type": "string",
+      "enum": ["HIT", "BLOCK", "MISS", "NONE"]
+    },
+    "item_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+    },
+    "item_type": {
+      "type": "string",
+      "enum": ["HEALTH", "ATTACK_BOOST"]
+    },
+    "hand": {
+      "type": "string",
+      "enum": ["LEFT", "RIGHT"]
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": { "event": { "const": "ITEM_PICKUP" } },
+        "required": ["event"]
+      },
+      "then": {
+        "required": ["item_id", "item_type"]
+      }
+    }
+  ]
+}

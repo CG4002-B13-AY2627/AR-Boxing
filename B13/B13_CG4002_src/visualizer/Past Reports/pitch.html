@@ -1,0 +1,1220 @@
+<title>Split Ring</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap">
+
+<style>
+  :root {
+    --canvas:  #E9E7E0;
+    --surface: #FBFAF6;
+    --sunk:    #DFDCD3;
+    --ink:     #191A1E;
+    --muted:   #62645F;
+    --rule:    #D3D0C7;
+    --red:     #A9272C;
+    --blue:    #2C5578;
+    --red-tint:  rgba(169, 39, 44, 0.09);
+    --blue-tint: rgba(44, 85, 120, 0.09);
+
+    --display: "Big Shoulders Display", "Haettenschweiler", "Arial Narrow", sans-serif;
+    --body:    "IBM Plex Sans", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono:    "IBM Plex Mono", ui-monospace, Consolas, monospace;
+
+    --measure: 34rem;
+    --wide:    52rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --canvas:  #151619;
+      --surface: #1D1F24;
+      --sunk:    #101114;
+      --ink:     #E9E7E0;
+      --muted:   #9A9C97;
+      --rule:    #2C2F35;
+      --red:     #E2635D;
+      --blue:    #7BA6D0;
+      --red-tint:  rgba(226, 99, 93, 0.13);
+      --blue-tint: rgba(123, 166, 208, 0.13);
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --canvas:  #151619;
+    --surface: #1D1F24;
+    --sunk:    #101114;
+    --ink:     #E9E7E0;
+    --muted:   #9A9C97;
+    --rule:    #2C2F35;
+    --red:     #E2635D;
+    --blue:    #7BA6D0;
+    --red-tint:  rgba(226, 99, 93, 0.13);
+    --blue-tint: rgba(123, 166, 208, 0.13);
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    background: var(--canvas);
+    color: var(--ink);
+    font-family: var(--body);
+    font-size: 16px;
+    line-height: 1.65;
+    margin: 0;
+    padding: 0 1.25rem 6rem;
+  }
+
+  .page {
+    max-width: var(--wide);
+    margin: 0 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 4rem;
+  }
+
+  p { margin: 0; max-width: var(--measure); }
+  .wide p { max-width: none; }
+
+  a { color: var(--red); text-underline-offset: 2px; }
+  a:focus-visible,
+  .jump a:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; }
+
+  /* ---------- shared type roles ---------- */
+
+  .label {
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    font-weight: 600;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin: 0;
+  }
+
+  .lede { font-size: 1.1rem; color: var(--muted); }
+
+  /* ---------- hero ---------- */
+
+  .hero {
+    padding: 4.5rem 0 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .hero .label { color: var(--red); }
+
+  .hero h1 {
+    font-family: var(--display);
+    font-size: clamp(4rem, 17vw, 9rem);
+    font-weight: 800;
+    line-height: 0.82;
+    letter-spacing: 0.005em;
+    text-transform: uppercase;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .corner-rule {
+    display: flex;
+    height: 7px;
+    margin: 0.35rem 0 0.15rem;
+  }
+  .corner-rule span { flex: 1; }
+  .corner-rule span:first-child { background: var(--red); }
+  .corner-rule span:last-child   { background: var(--blue); }
+
+  .working-title { font-size: 0.85rem; color: var(--muted); font-style: italic; }
+
+  /* ---------- agenda ---------- */
+
+  .agenda {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-top: 6px solid var(--red);
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .agenda h2 {
+    font-family: var(--display);
+    font-size: 1.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    margin: 0;
+  }
+
+  ol.jump {
+    margin: 0;
+    padding-left: 1.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  ol.jump li { padding-left: 0.25rem; }
+  ol.jump li + li { margin-top: 0.5rem; }
+  ol.jump li::marker { font-family: var(--mono); font-weight: 600; color: var(--red); }
+  ol.jump a { color: var(--ink); font-weight: 500; }
+
+  /* ---------- sections ---------- */
+
+  section { display: flex; flex-direction: column; gap: 1.4rem; scroll-margin-top: 2rem; }
+
+  .sec-head { display: flex; flex-direction: column; gap: 0.5rem; }
+
+  .sec-head h2 {
+    font-family: var(--display);
+    font-size: clamp(2rem, 5.5vw, 2.9rem);
+    font-weight: 700;
+    line-height: 0.95;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    margin: 0;
+    text-wrap: balance;
+    border-top: 2px solid var(--ink);
+    padding-top: 0.75rem;
+  }
+
+  h3 {
+    font-family: var(--body);
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    letter-spacing: -0.005em;
+  }
+
+  .stack { display: flex; flex-direction: column; gap: 0.9rem; }
+  .stack-lg { display: flex; flex-direction: column; gap: 1.75rem; }
+
+  /* ---------- beat list (match flow) ---------- */
+
+  .beats { display: flex; flex-direction: column; gap: 1.4rem; margin: 0; }
+
+  .beat { display: grid; grid-template-columns: 8.5rem 1fr; gap: 1.25rem; align-items: start; }
+
+  .beat > dt {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--red);
+    padding-top: 0.3rem;
+    border-top: 2px solid var(--red);
+  }
+  .beat > dd { margin: 0; }
+
+  @media (max-width: 36rem) {
+    .beat { grid-template-columns: 1fr; gap: 0.5rem; }
+  }
+
+  /* ---------- diagrams ---------- */
+
+  figure { margin: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+
+  .dgm-frame {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    padding: 1.25rem;
+    overflow-x: auto;
+  }
+
+  .dgm-frame svg { display: block; width: 100%; min-width: 30rem; height: auto; }
+
+  figcaption { font-size: 0.875rem; color: var(--muted); max-width: var(--measure); }
+
+  .dgm-ring     { fill: none; stroke: var(--rule); stroke-width: 2; }
+  .dgm-floor    { fill: var(--sunk); }
+  .dgm-box      { fill: var(--sunk); stroke: var(--rule); stroke-width: 1.5; }
+  .dgm-box-hi   { fill: var(--red-tint); stroke: var(--red); stroke-width: 2; }
+  .dgm-line     { stroke: var(--muted); stroke-width: 1.75; fill: none; }
+  .dgm-line-b   { stroke: var(--blue); stroke-width: 1.75; fill: none; }
+  .dgm-head     { fill: var(--ink); font-family: var(--mono); font-size: 11px; font-weight: 600; letter-spacing: 0.1em; }
+  .dgm-t        { fill: var(--ink); font-family: var(--body); font-size: 12.5px; font-weight: 600; }
+  .dgm-s        { fill: var(--muted); font-family: var(--mono); font-size: 10.5px; letter-spacing: 0.06em; }
+  .dgm-red      { fill: var(--red); }
+  .dgm-blue     { fill: var(--blue); }
+  .arw          { fill: var(--muted); }
+  .arw-b        { fill: var(--blue); }
+
+  .fig-solid-r { fill: var(--red);  stroke: var(--red);  stroke-width: 3; stroke-linecap: round; }
+  .fig-solid-b { fill: var(--blue); stroke: var(--blue); stroke-width: 3; stroke-linecap: round; }
+  .fig-ghost-r { fill: none; stroke: var(--red);  stroke-width: 2; stroke-dasharray: 4 3.5; stroke-linecap: round; opacity: 0.75; }
+  .fig-ghost-b { fill: none; stroke: var(--blue); stroke-width: 2; stroke-dasharray: 4 3.5; stroke-linecap: round; opacity: 0.75; }
+  .fig-ghost-n { fill: none; stroke: var(--muted); stroke-width: 2; stroke-dasharray: 4 3.5; stroke-linecap: round; opacity: 0.6; }
+
+  /* ---------- telegraph indicator ---------- */
+
+  .tel      { fill: none; stroke: var(--red); stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+  .tel-mid  { opacity: 0.5; }
+  .tel-far  { opacity: 0.25; }
+  .tel-fill { fill: var(--red); }
+  .dgm-warn { fill: var(--red-tint); stroke: var(--red); stroke-width: 1.5; }
+  .dgm-warn-b { fill: var(--blue-tint); stroke: var(--blue); stroke-width: 1.5; }
+  .dgm-guide { stroke: var(--red); stroke-width: 1.5; fill: none; stroke-dasharray: 3 4; }
+
+  /* ---------- tables ---------- */
+
+  .t-wrap { overflow-x: auto; border: 1px solid var(--rule); }
+
+  table { border-collapse: collapse; width: 100%; min-width: 30rem; font-size: 0.92rem; background: var(--surface); }
+
+  th, td { text-align: left; padding: 0.75rem 0.9rem; border-bottom: 1px solid var(--rule); vertical-align: top; }
+
+  thead th {
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.13em;
+    text-transform: uppercase;
+    color: var(--muted);
+    background: var(--sunk);
+  }
+
+  tbody tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+  /* ---------- owner cards ---------- */
+
+  .owners { display: grid; grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr)); gap: 1.1rem; }
+
+  .owner { background: var(--surface); border: 1px solid var(--rule); display: flex; flex-direction: column; }
+
+  .owner > .owner-band {
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    padding: 0.5rem 1rem;
+    background: var(--ink);
+    color: var(--canvas);
+  }
+  .owner.is-ours > .owner-band { background: var(--red); color: #FFFFFF; }
+
+  .owner > .owner-body { padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; font-size: 0.92rem; }
+  .owner > .owner-body p { max-width: none; }
+  .owner .ask { color: var(--muted); font-size: 0.85rem; border-top: 1px solid var(--rule); padding-top: 0.6rem; }
+
+  /* ---------- decisions ---------- */
+
+  .decisions { display: flex; flex-direction: column; gap: 1.5rem; }
+
+  .dec { display: flex; flex-direction: column; gap: 0.4rem; border-left: 3px solid var(--blue); padding-left: 1.1rem; }
+  .dec.is-open { border-left-color: var(--red); }
+
+  .dec-top { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.6rem; }
+  .dec-top h3 { flex: 1 1 100%; }
+
+  .chip {
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    padding: 0.22em 0.5em;
+    border: 1px solid currentColor;
+    white-space: nowrap;
+    order: -1;
+  }
+  .chip.open  { color: var(--red); }
+  .chip.set   { color: var(--blue); }
+  .chip.who   { color: var(--muted); }
+
+  .dec p { font-size: 0.94rem; }
+
+  /* ---------- timeline ---------- */
+
+  .track { display: flex; flex-direction: column; gap: 0; border-left: 2px solid var(--rule); }
+
+  .stop { display: grid; grid-template-columns: 7.5rem 1fr; gap: 1.25rem; padding: 0 0 1.6rem 1.5rem; position: relative; }
+  .stop:last-child { padding-bottom: 0; }
+
+  .stop::before {
+    content: "";
+    position: absolute;
+    left: -7px;
+    top: 0.45rem;
+    width: 12px;
+    height: 12px;
+    background: var(--red);
+  }
+
+  .stop > .when {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--ink);
+  }
+  .stop > .what { font-size: 0.94rem; color: var(--muted); }
+
+  @media (max-width: 36rem) {
+    .stop { grid-template-columns: 1fr; gap: 0.3rem; }
+  }
+
+  /* ---------- caution block ---------- */
+
+  .caution { background: var(--red-tint); border: 1px solid var(--red); padding: 1.5rem; display: flex; flex-direction: column; gap: 0.9rem; }
+  .caution h3 { color: var(--red); }
+  .caution ul { margin: 0; padding-left: 1.2rem; display: flex; flex-direction: column; gap: 0.55rem; font-size: 0.94rem; }
+
+  .note { background: var(--surface); border: 1px solid var(--rule); padding: 1.25rem; font-size: 0.92rem; display: flex; flex-direction: column; gap: 0.7rem; }
+  .note p { max-width: none; }
+
+  /* ---------- footer ---------- */
+
+  footer { border-top: 2px solid var(--ink); padding-top: 1.25rem; color: var(--muted); font-size: 0.85rem; display: flex; flex-direction: column; gap: 0.4rem; }
+  footer p { max-width: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation: none !important; transition: none !important; }
+  }
+</style>
+
+<div class="page">
+
+  <header class="hero">
+    <p class="label">CG4002 · Team Pitch · Group Discussion</p>
+    <h1>Split<br>Ring</h1>
+    <div class="corner-rule" aria-hidden="true"><span></span><span></span></div>
+    <p class="lede">
+      Two-player AR boxing. Each fighter stands in their own square and sees the other rendered
+      into it — so nobody ever gets hit, and the system has to <em>infer</em> every punch that lands.
+    </p>
+    <p class="working-title">Working title. Change it if you hate it.</p>
+  </header>
+
+  <div class="agenda">
+    <h2>What I need from you tomorrow</h2>
+    <p>Seven calls. Five are mine to propose and yours to veto; one costs money, and one nobody has
+      a number for yet.</p>
+    <ol class="jump">
+      <li><a href="#rings">Separated rings</a> — do we accept that players never touch?</li>
+      <li><a href="#avatar">The arm chain</a> — do we spend ~$80 on 6 more IMUs? <strong>Costs money.</strong></li>
+      <li><a href="#fighting">Classification, not collision</a> — how a hit is decided.</li>
+      <li><a href="#telegraph">The telegraph</a> — an on-screen warning that a punch is coming. <strong>New.</strong></li>
+      <li><a href="#items">Items and gestures</a> — the pickup mechanic.</li>
+      <li><a href="#system">Pose stream</a> — Comms and Visualizer take a new data path.</li>
+      <li><a href="#unsure">Round length</a> — nobody has picked a number yet.</li>
+    </ol>
+  </div>
+
+  <section id="match">
+    <div class="sec-head">
+      <h2>What a match actually looks like</h2>
+    </div>
+    <dl class="beats">
+      <div class="beat">
+        <dt>Before the bell</dt>
+        <dd>Both players strap on arm sensors and head-mount their phone. The lobby runs a
+          30-second calibration — hold your guard, throw one of each punch. This is not decoration:
+          it is what makes the system work on a person it has never seen.</dd>
+      </div>
+      <div class="beat">
+        <dt>The round</dt>
+        <dd>You are alone in your square. Your opponent appears in front of you, rendered into
+          your real room, moving as they really move. You throw real punches at them. They are
+          three metres and one wall away, so nobody gets hurt. When they start to throw something,
+          a marker flashes on the side it is coming from — the system calls the punch before it
+          finishes.</dd>
+      </div>
+      <div class="beat">
+        <dt>Between exchanges</dt>
+        <dd>Crates spawn on your floor. Only you can see yours. Reaching for one drops your
+          guard for about half a second — which is exactly when you eat a hook.</dd>
+      </div>
+      <div class="beat">
+        <dt>The bell</dt>
+        <dd>Health hits zero, or the timer runs out and whoever has more health wins.</dd>
+      </div>
+    </dl>
+  </section>
+
+  <section id="rings">
+    <div class="sec-head">
+      <p class="label">Decision 1 · Proposed</p>
+      <h2>The move that makes this buildable</h2>
+    </div>
+
+    <p>Putting each player in their own square is the one decision everything else hangs off. It
+      solves three problems at once that we had no good answer to:</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>Problem</th><th>How separated rings solve it</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Safety</strong></td>
+            <td>A phone strapped to your face means you cannot take head contact. Separate squares
+              make that structural instead of relying on players holding back.</td>
+          </tr>
+          <tr>
+            <td><strong>Knowing who is in range</strong></td>
+            <td>This was blocking everything. With separate rings, engagement distance becomes a
+              number the game <em>defines</em> rather than a measurement the hardware must make.</td>
+          </tr>
+          <tr>
+            <td><strong>Requirement 2</strong></td>
+            <td>Nothing on the floor, nothing in the room, no infrastructure sensors. Just space.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <figure class="wide">
+      <div class="dgm-frame">
+        <svg viewBox="0 0 700 330" role="img" aria-label="Two separate squares. In each, the real player is drawn solid and the opponent is drawn as a dashed ghost. A pose stream connects the two squares.">
+          <defs>
+            <marker id="arwA" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" class="arw"></path>
+            </marker>
+          </defs>
+
+          <text x="20"  y="30" class="dgm-head">PLAYER 1 · OWN ROOM</text>
+          <text x="420" y="30" class="dgm-head">PLAYER 2 · OWN ROOM</text>
+
+          <rect x="20"  y="50" width="260" height="215" class="dgm-floor"></rect>
+          <rect x="20"  y="50" width="260" height="215" class="dgm-ring"></rect>
+          <rect x="420" y="50" width="260" height="215" class="dgm-floor"></rect>
+          <rect x="420" y="50" width="260" height="215" class="dgm-ring"></rect>
+
+          <!-- P1 square: solid blue player facing right, ghosted red opponent facing left -->
+          <g class="fig-solid-b">
+            <circle cx="85" cy="115" r="10"></circle>
+            <path d="M85,125 L85,178 M85,178 L73,202 M85,178 L97,202 M85,138 L107,133 M85,142 L100,151"></path>
+            <circle cx="113" cy="132" r="7"></circle>
+            <circle cx="106" cy="155" r="7"></circle>
+          </g>
+          <g class="fig-ghost-r">
+            <circle cx="215" cy="115" r="10"></circle>
+            <path d="M215,125 L215,178 M215,178 L203,202 M215,178 L227,202 M215,138 L193,133 M215,142 L200,151"></path>
+            <circle cx="187" cy="132" r="7"></circle>
+            <circle cx="194" cy="155" r="7"></circle>
+          </g>
+
+          <!-- P2 square: ghosted blue opponent facing right, solid red player facing left -->
+          <g class="fig-ghost-b">
+            <circle cx="485" cy="115" r="10"></circle>
+            <path d="M485,125 L485,178 M485,178 L473,202 M485,178 L497,202 M485,138 L507,133 M485,142 L500,151"></path>
+            <circle cx="513" cy="132" r="7"></circle>
+            <circle cx="506" cy="155" r="7"></circle>
+          </g>
+          <g class="fig-solid-r">
+            <circle cx="615" cy="115" r="10"></circle>
+            <path d="M615,125 L615,178 M615,178 L603,202 M615,178 L627,202 M615,138 L593,133 M615,142 L600,151"></path>
+            <circle cx="587" cy="132" r="7"></circle>
+            <circle cx="594" cy="155" r="7"></circle>
+          </g>
+
+          <text x="350" y="120" class="dgm-s" text-anchor="middle">POSE</text>
+          <text x="350" y="134" class="dgm-s" text-anchor="middle">STREAM</text>
+          <path d="M292,152 L400,152" class="dgm-line" marker-end="url(#arwA)"></path>
+          <path d="M408,180 L300,180" class="dgm-line" marker-end="url(#arwA)"></path>
+          <text x="350" y="205" class="dgm-s" text-anchor="middle">60–110 ms</text>
+
+          <text x="20"  y="295" class="dgm-s">SOLID — the real person in that room</text>
+          <text x="20"  y="315" class="dgm-s">DASHED — the opponent, rendered into it</text>
+        </svg>
+      </div>
+      <figcaption>Neither player ever appears in the other's camera. Everything you see of your
+        opponent is drawn from data they send you.</figcaption>
+    </figure>
+
+    <div class="note">
+      <p><strong>The cost:</strong> because the opponent is never physically there, we have to
+        synthesise them entirely. That is the next two sections, and it is where the real
+        engineering is.</p>
+    </div>
+  </section>
+
+  <section id="avatar">
+    <div class="sec-head">
+      <p class="label">Decision 2 · Open · Costs money</p>
+      <h2>What your opponent will look like</h2>
+    </div>
+
+    <p>With one IMU on each forearm plus the phone on your head, we know three things about the
+      opponent's body: where their head is, and which way each forearm is pointing. We do
+      <strong>not</strong> know where their hands are in space, and we know nothing at all about
+      their torso, hips or legs.</p>
+
+    <p>An IMU measures rotation well and position badly — working out position means integrating
+      acceleration twice, which drifts into nonsense within seconds. So with today's sensor list,
+      the honest render is <strong>two gloves and a head</strong>, floating. Plenty of VR boxing
+      games ship exactly this and it looks fine. But we should choose it now, not discover it in
+      Week 10.</p>
+
+    <h3>We can do better, and it is cheaper than you'd think</h3>
+
+    <p>Full-body IMU motion capture is a solved commercial product — Xsens, Rokoko and Perception
+      Neuron all do it with 17–19 sensors and no cameras. The trick is that they never integrate
+      acceleration. They put a sensor on <em>each rigid body segment</em>, take each segment's
+      orientation, assume bone lengths from a calibration pose, and derive every joint position by
+      walking the skeleton from a root outwards.</p>
+
+    <p>Twenty nodes is obviously out on both budget and Beetle count. But <strong>Requirement 3
+      says the system must run <em>on</em> the FireBeetle — not that every sensor needs its
+      own.</strong> One Beetle per player with several IMUs on an I2C mux changes the maths
+      completely.</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>Option</th><th class="num">Rough cost</th><th>What we get</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>A — Ship as-is</strong><br>2 forearm IMUs per player</td>
+            <td class="num">$0 extra</td>
+            <td>Floating gloves and a head. Combat decided purely by classification. Works.</td>
+          </tr>
+          <tr>
+            <td><strong>B — Arm chain</strong><br>+ sternum and both upper arms</td>
+            <td class="num">≈ $80<br>10 IMUs, 2 Beetles</td>
+            <td>A real arm skeleton, so glove position becomes trustworthy to roughly ±5–10 cm.
+              Legs stay animated. <strong>My recommendation.</strong></td>
+          </tr>
+          <tr>
+            <td><strong>C — Full body</strong><br>~10 segments per player</td>
+            <td class="num">$400+</td>
+            <td>Dead. Over budget, and far past "a few Beetles per team".</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="caution">
+      <h3>Three things to weigh before we buy anything</h3>
+      <ul>
+        <li><strong>Drift is the real enemy, not sensor count.</strong> Gravity pins down tilt, but
+          nothing pins down which way a segment is <em>facing</em> without a magnetometer — and
+          indoor magnetometers get wrecked by steel and electronics. Over a three-minute round the
+          avatar slowly unwinds. There is a free fix: reference the chest sensor's heading to the
+          phone's own tracking, which is already world-locked.</li>
+        <li><strong>It helps the AI too — more than I first realised.</strong> Upper-arm rotation
+          is exactly what separates a hook from a cross, and it roughly triples the size of the
+          input the network sees, which makes the FPGA work a lot easier to justify. It is also the
+          difference between being able to call a punch <em>while it is being thrown</em> and not.
+          See <a href="#telegraph">Decision 4</a> — that mechanic mostly stands or falls on this
+          purchase.</li>
+        <li><strong>It weakens my own argument in the next section.</strong> Good glove positions
+          make collision detection tempting again. I still think classification wins, but I would
+          be defending a different position than the one below.</li>
+      </ul>
+    </div>
+
+    <p><strong>The cost lands on Sensors:</strong> a wired harness on someone throwing punches is a
+      comfort, weight, snag and durability problem — and comfort and weight are named explicitly
+      in how we get graded on design.</p>
+  </section>
+
+  <section id="fighting">
+    <div class="sec-head">
+      <p class="label">Decision 3 · Proposed</p>
+      <h2>How we decide a punch landed</h2>
+    </div>
+
+    <p>Once the opponent is a rendered figure with a hitbox, the obvious move is to check whether
+      your glove is inside their head. <strong>I want us to deliberately not do that.</strong></p>
+
+    <p>Two reasons. The practical one: we do not know where your glove is to the few centimetres
+      that a head-versus-shoulder call needs — even with option B above. The strategic one: if
+      combat is geometry, then combat is trigonometry the game engine does alone, and the entire
+      AI subsystem becomes a thing that prints punch names nobody reads.</p>
+
+    <p>So a hit is a <strong>fusion</strong> of four things:</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>Ingredient</th><th>Comes from</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>What punch was thrown, and how hard</td><td>The neural network, on the FPGA</td></tr>
+          <tr><td>Whether you were close enough</td><td>Engagement distance, from both players' movement</td></tr>
+          <tr><td>Whether they were guarding that side</td><td>The neural network, on their arms</td></tr>
+          <tr><td>What that does to health and stamina</td><td>Game engine</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <p>The avatar's gloves are for <em>looking at</em>. They never decide anything. That one
+      sentence is what keeps the FPGA in the critical path rather than making it a decoration —
+      so if you disagree with it, tomorrow is the time to say so.</p>
+
+    <h3>Distance, without the two squares fighting each other</h3>
+
+    <p>If both players step forward at once, a naive shared coordinate system puts them inside each
+      other. So we never share one. <strong>Your opponent is always rendered facing you</strong>,
+      and the gap between you is worked out from how far each of you has moved from your own
+      starting spot, clamped so it can never go below arm's length. Step in and the distance
+      closes; step out and it opens. Two players who both charge will feel the distance stop
+      responding — that is the price, and I think it is worth paying.</p>
+  </section>
+
+  <section id="telegraph">
+    <div class="sec-head">
+      <p class="label">Decision 4 · Proposed · New</p>
+      <h2>Seeing the punch before it arrives</h2>
+    </div>
+
+    <p>As designed so far, the defender has no information. A glove moves, and a moment later your
+      health bar drops. Real boxing is not that — it is almost entirely reading what the other
+      person is about to do. So: <strong>can the AI call the punch while it is still being thrown,
+      and put a warning on the defender's screen?</strong></p>
+
+    <p>Yes, and it is nearly free. It is the same network with one extra output, trained on the
+      <em>first fraction</em> of a punch instead of the whole thing. I had already flagged early
+      classification as our strongest novelty angle — this is what it looks like as a game mechanic
+      rather than a line in a report.</p>
+
+    <h3>But do the arithmetic before designing around it</h3>
+
+    <p>A punch takes roughly a quarter of a second from the shoulder starting to move to the fist
+      arriving. We need enough signal to guess, then the guess has to travel across BLE, the
+      laptop, the Ultra96, back out to the other player's phone, and get drawn. That eats most of
+      the quarter second.</p>
+
+    <figure class="wide">
+      <div class="dgm-frame">
+        <svg viewBox="0 0 700 300" role="img" aria-label="Timeline of a punch. With forearm sensors only the telegraph appears about 35 milliseconds before impact. With the arm chain it appears about 105 milliseconds before impact. Both are shorter than the roughly 200 millisecond human reaction time.">
+          <path d="M462,36 L462,232" class="dgm-guide"></path>
+          <text x="462" y="26" class="dgm-s dgm-red" text-anchor="middle">IMPACT</text>
+
+          <text x="16" y="76" class="dgm-head">THE PUNCH</text>
+          <rect x="150" y="58" width="312" height="26" class="dgm-box"></rect>
+          <text x="306" y="76" class="dgm-t" text-anchor="middle">WIND-UP → EXTENSION</text>
+
+          <text x="16" y="136" class="dgm-head">FOREARM ONLY</text>
+          <rect x="420" y="118" width="42" height="26" class="dgm-warn"></rect>
+          <text x="441" y="110" class="dgm-s dgm-red" text-anchor="middle">35 ms</text>
+          <text x="412" y="136" class="dgm-s" text-anchor="end">TELEGRAPH ▸</text>
+
+          <text x="16" y="196" class="dgm-head">+ ARM CHAIN</text>
+          <rect x="336" y="178" width="126" height="26" class="dgm-warn-b"></rect>
+          <text x="399" y="196" class="dgm-t dgm-blue" text-anchor="middle">105 ms</text>
+          <text x="328" y="196" class="dgm-s" text-anchor="end">TELEGRAPH ▸</text>
+
+          <path d="M150,232 L630,232" class="dgm-line"></path>
+          <path d="M150,232 L150,238 M270,232 L270,238 M390,232 L390,238 M510,232 L510,238 M630,232 L630,238" class="dgm-line"></path>
+          <text x="150" y="252" class="dgm-s" text-anchor="middle">0</text>
+          <text x="270" y="252" class="dgm-s" text-anchor="middle">100</text>
+          <text x="390" y="252" class="dgm-s" text-anchor="middle">200</text>
+          <text x="510" y="252" class="dgm-s" text-anchor="middle">300</text>
+          <text x="630" y="252" class="dgm-s" text-anchor="middle">400 MS</text>
+
+          <path d="M336,272 L576,272 M336,266 L336,278 M576,266 L576,278" class="dgm-line"></path>
+          <text x="456" y="292" class="dgm-s" text-anchor="middle">SEE IT, THEN REACT (≈200 MS) — YOU MOVE HERE. TOO LATE.</text>
+        </svg>
+      </div>
+      <figcaption>Time zero is the shoulder and trunk beginning to move, which is about 70 ms
+        before the forearm goes anywhere. Neither warning window beats a human reflex — which
+        decides what the indicator is allowed to be <em>for</em>.</figcaption>
+    </figure>
+
+    <p>Two things fall out of that picture, and they are the whole argument:</p>
+
+    <h3>1. This is the real reason to buy the arm chain</h3>
+
+    <p>A punch travels outwards through the body — hips, then trunk, then shoulder, then the elbow
+      straightens. <strong>A forearm sensor is watching the last link in that chain.</strong> A
+      sensor on the chest and upper arm sees the punch start 50–100 ms earlier, which roughly
+      triples the warning we can give.</p>
+
+    <p>So <a href="#avatar">option B</a> is not just about the avatar looking better. It is what
+      makes this mechanic work at all. If we say no to the arm chain, we should probably say no to
+      the telegraph too — 35 ms is not a warning, it is a flicker.</p>
+
+    <h3>2. It cannot be "dodge this punch"</h3>
+
+    <p>Even at 105 ms, you cannot see it and then react — human reflex is about twice that. Anyone
+      who designs a slip-the-hook mechanic on top of this will build something that feels broken.
+      What the warning is genuinely good for is <strong>which guard you are already holding</strong>,
+      which is exactly the stance-not-reaction decision we already made for blocking. You read the
+      pattern over an exchange rather than flinching at one punch.</p>
+
+    <p>If we want it to bite harder, the game engine can also resolve the hit a fixed delay after
+      the telegraph rather than the instant the punch finishes — every fighting game ever made
+      clocks its wind-ups this way. That is a game-engine call, not an AI one.</p>
+
+    <h3>What the indicator looks like</h3>
+
+    <p>It has to be readable in a fraction of a second, in peripheral vision, while someone is
+      punching. So: no text, no numbers, no health-bar-style readout. Shape says what is coming,
+      position says where from, and it fades in and out over about 200 ms.</p>
+
+    <figure class="wide">
+      <div class="dgm-frame">
+        <svg viewBox="0 0 700 258" role="img" aria-label="Three views of the AR display. A straight punch shows chevrons closing in from one side, a hook shows an arc sweeping in from the side, and an uppercut shows an arc rising from below.">
+          <defs>
+            <marker id="arwT" markerWidth="14" markerHeight="14" refX="10" refY="7" orient="auto" markerUnits="userSpaceOnUse">
+              <path d="M0,0 L12,7 L0,14 z" class="tel-fill"></path>
+            </marker>
+          </defs>
+
+          <!-- panel 1 : straight -->
+          <text x="25" y="22" class="dgm-head">STRAIGHT · JAB · CROSS</text>
+          <rect x="25" y="32" width="210" height="170" class="dgm-floor"></rect>
+          <rect x="25" y="32" width="210" height="170" class="dgm-ring"></rect>
+          <g class="fig-ghost-n">
+            <circle cx="130" cy="95" r="11"></circle>
+            <circle cx="100" cy="132" r="9"></circle>
+            <circle cx="160" cy="129" r="9"></circle>
+          </g>
+          <path d="M47,89 l16,16 l-16,16" class="tel tel-far"></path>
+          <path d="M67,89 l16,16 l-16,16" class="tel tel-mid"></path>
+          <path d="M87,89 l16,16 l-16,16" class="tel"></path>
+          <text x="25" y="222" class="dgm-s">CHEVRONS · SIDE = WHICH ARM</text>
+
+          <!-- panel 2 : hook -->
+          <text x="245" y="22" class="dgm-head">HOOK</text>
+          <rect x="245" y="32" width="210" height="170" class="dgm-floor"></rect>
+          <rect x="245" y="32" width="210" height="170" class="dgm-ring"></rect>
+          <g class="fig-ghost-n">
+            <circle cx="350" cy="95" r="11"></circle>
+            <circle cx="320" cy="132" r="9"></circle>
+            <circle cx="380" cy="129" r="9"></circle>
+          </g>
+          <path d="M446,56 Q444,166 352,160" class="tel tel-mid"></path>
+          <path d="M434,68 Q430,148 360,140" class="tel" marker-end="url(#arwT)"></path>
+          <text x="245" y="222" class="dgm-s">ARC SWEEPS IN FROM THE SIDE</text>
+
+          <!-- panel 3 : uppercut -->
+          <text x="465" y="22" class="dgm-head">UPPERCUT</text>
+          <rect x="465" y="32" width="210" height="170" class="dgm-floor"></rect>
+          <rect x="465" y="32" width="210" height="170" class="dgm-ring"></rect>
+          <g class="fig-ghost-n">
+            <circle cx="570" cy="95" r="11"></circle>
+            <circle cx="540" cy="132" r="9"></circle>
+            <circle cx="600" cy="129" r="9"></circle>
+          </g>
+          <path d="M507,192 Q538,146 556,112" class="tel tel-mid"></path>
+          <path d="M523,190 Q548,150 566,118" class="tel" marker-end="url(#arwT)"></path>
+          <text x="465" y="222" class="dgm-s">ARC RISES FROM BELOW</text>
+
+          <text x="25" y="246" class="dgm-s">FAINTER = LESS SURE · THE WHOLE THING LASTS ABOUT 200 MS · GREY = YOUR OPPONENT'S GLOVES AND HEAD</text>
+        </svg>
+      </div>
+      <figcaption>Three shapes, because three is what the sensors can honestly separate this early.
+        If the model is not confident, the indicator still appears but faint and shapeless — an
+        "something is coming" rather than a specific call.</figcaption>
+    </figure>
+
+    <h3>What it can and cannot tell you that early</h3>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>At the moment we have to commit</th><th>Can we call it?</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Straight versus hooking</td><td><strong>Yes</strong> — a hook has rotation in it from the very first frame; a straight does not.</td></tr>
+          <tr><td>Rising (uppercut) versus level</td><td><strong>Yes</strong> — it pushes against gravity in a way nothing else does.</td></tr>
+          <tr><td>Which arm it is coming from</td><td><strong>Free</strong> — we know which sensor sent it.</td></tr>
+          <tr><td>Jab versus cross</td><td>No, not this early. Same motion, and the difference is mostly which arm anyway.</td></tr>
+          <tr><td>How hard it will land</td><td>No. The punch has not peaked yet.</td></tr>
+          <tr><td>Head or body</td><td>No.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>The nice side effect: feints become real</h3>
+
+    <p>Once a warning exists, starting a hook and aborting it makes your opponent commit their guard
+      to nothing. That is authentic boxing, it balances out the advantage the telegraph hands the
+      defender, and it costs us <em>zero</em> to implement — a feint is just a punch that never
+      finishes, so the system produces it for free.</p>
+
+    <div class="caution">
+      <h3>The failure mode I am worried about</h3>
+      <p><strong>A warning that cries wolf is worse than no warning.</strong> If it fires when you
+        adjust your guard or reach for a crate and no punch follows, players will learn to ignore
+        it inside one round and we will have built nothing.</p>
+      <p>So the bar for showing it is higher than the bar for classifying a completed punch, and
+        <strong>"false warnings per minute" becomes a number I have to report</strong> alongside
+        accuracy — not a thing I get to leave out.</p>
+      <p>The other cost is unglamorous: to train this, I need training data labelled with
+        <em>when each punch started</em>, not just what it was. That is more careful annotation
+        work than we were planning on, and it is the part of this most likely to bite.</p>
+    </div>
+
+    <h3>What it asks of each of us</h3>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>Who</th><th>What changes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><strong>AI — mine</strong></td><td>One extra output head on the same network. Onset-labelled training data. A second event type on the interface: a <em>predicted</em> punch, which may or may not be followed by a real one.</td></tr>
+          <tr><td><strong>Visualizer</strong></td><td>Draw three shapes and fade them. Genuinely small — and the smallest new thing in this whole document.</td></tr>
+          <tr><td><strong>Comms</strong></td><td>Nothing new structurally. The warning rides Path A, but it is latency-critical in a way scoring events are not.</td></tr>
+          <tr><td><strong>Sensors</strong></td><td>This is the strongest reason to say yes to the arm chain.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <p><strong>And it quietly fixes my weakest argument.</strong> To catch a punch at its onset I
+        have to run the network far more often than I do to classify a finished one — every 10–20 ms
+        instead of every 40. That is four to eight times the inference load, and it comes from a
+        gameplay requirement rather than from me inflating numbers to justify the FPGA. See
+        <a href="#unsure">the honest caveat</a> at the end.</p>
+    </div>
+  </section>
+
+  <section id="items">
+    <div class="sec-head">
+      <p class="label">Decision 5 · Proposed</p>
+      <h2>Items, and the one thing we have to change</h2>
+    </div>
+
+    <p>Crates spawn on your own floor, invisible to your opponent. Three contents: <strong>thorn
+      armour</strong> (attacking you hurts them), <strong>bandages</strong> (heal),
+      <strong>poison</strong> (damage over time).</p>
+
+    <h3>Crates are unmarked, and reaching for one is dangerous</h3>
+
+    <p>You do not know what a crate holds until you pick it up. Without that, nobody ever picks up
+      poison and it stops being a mechanic. And picking up means extending your arm, which drops
+      your guard for about 600 ms. So every crate is a gamble twice over: what is in it, and
+      whether you get countered for reaching. The gesture <em>is</em> the mechanic, not just an
+      input method.</p>
+
+    <div class="caution">
+      <h3>Open palm cannot work. It has to change.</h3>
+      <p>A sensor on your <em>forearm</em> cannot tell whether your hand is open or in a fist —
+        fingers and wrist don't move the forearm, so there is literally no signal to read. This is
+        not a difficulty; it is an absence.</p>
+      <p><strong>Proposed swap: reach out and turn your palm up.</strong> That is a forearm roll,
+        which the gyroscope sees unambiguously. Same instinct — palm up to receive — and it
+        actually works.</p>
+      <p>Same test applies to the three item-use gestures. Anything defined by hand shape, grip or
+        finger position is invisible to us.</p>
+    </div>
+
+    <h3>Using items</h3>
+
+    <p>Three gestures, all picked to be things a boxer never does by accident, and all separable
+      from punches by <em>direction</em> rather than by how hard they are:</p>
+
+    <div class="t-wrap">
+      <table>
+        <thead>
+          <tr><th>Gesture</th><th>Why the sensor can see it</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Raise a forearm overhead</td><td>Gravity flips upside down. Impossible to confuse.</td></tr>
+          <tr><td>Press down toward the floor</td><td>Rolls the opposite way to the pickup gesture.</td></tr>
+          <tr><td>Tap your own chest twice</td><td>Moves <em>inward</em>, where every punch moves outward.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Your randomised mapping stays — it is doing real work</h3>
+
+    <p>Which gesture triggers which item is shuffled every round. I originally wanted this off by
+      default and I was wrong. Here is why it matters: <strong>the avatar renders your arm motion
+      faithfully.</strong> With a fixed mapping, your opponent watches you raise an arm overhead
+      and now knows you have thorn armour and should stop punching. Shuffling closes exactly that
+      leak.</p>
+
+    <p>It costs the AI nothing — we recognise the gesture, the game engine decides what it means.
+      And it is only hidden from your <em>opponent</em>: you are shown your own mapping. Put it as
+      a small icon on the glove rather than a corner readout and the mid-fight glance mostly
+      disappears.</p>
+
+    <h3>Stamina</h3>
+
+    <p>Punching costs stamina, scaled by how hard you threw it. Standing idle recovers fast but
+      leaves you open; holding your guard recovers slowly but protects you. Below a floor, your
+      punches lose their power.</p>
+
+    <p><strong>Guard is a stance you hold, not a reaction.</strong> Human reaction time is around
+      200 ms and the opponent's motion reaches your screen in 60–110 ms — reactive blocking would
+      be a coin flip. Held-stance blocking degrades gracefully instead of feeling broken.</p>
+  </section>
+
+  <section id="system">
+    <div class="sec-head">
+      <p class="label">Decision 6 · Affects Comms and Visualizer</p>
+      <h2>How the pieces connect</h2>
+    </div>
+
+    <p>There are <strong>two</strong> data paths, and keeping them separate matters.</p>
+
+    <figure class="wide">
+      <div class="dgm-frame">
+        <svg viewBox="0 0 720 300" role="img" aria-label="Path A carries combat events from arm sensors through a laptop relay and the Ultra96 to the game engine. Path B carries avatar pose directly between the two phones via a broker, bypassing the Ultra96.">
+          <defs>
+            <marker id="arwB" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" class="arw"></path>
+            </marker>
+            <marker id="arwC" markerWidth="9" markerHeight="9" refX="8" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" class="arw-b"></path>
+            </marker>
+          </defs>
+
+          <text x="16" y="22" class="dgm-head">PATH A · COMBAT EVENTS</text>
+
+          <rect x="16"  y="40" width="126" height="56" class="dgm-box"></rect>
+          <text x="79"  y="64" class="dgm-t" text-anchor="middle">Arm IMUs ×4</text>
+          <text x="79"  y="81" class="dgm-s" text-anchor="middle">SENSORS</text>
+
+          <rect x="176" y="40" width="126" height="56" class="dgm-box"></rect>
+          <text x="239" y="64" class="dgm-t" text-anchor="middle">Laptop relay</text>
+          <text x="239" y="81" class="dgm-s" text-anchor="middle">COMMS</text>
+
+          <rect x="336" y="40" width="166" height="56" class="dgm-box-hi"></rect>
+          <text x="419" y="64" class="dgm-t" text-anchor="middle">Ultra96 · PS + FPGA</text>
+          <text x="419" y="81" class="dgm-s dgm-red" text-anchor="middle">AI — MINE</text>
+
+          <rect x="536" y="40" width="168" height="56" class="dgm-box"></rect>
+          <text x="620" y="64" class="dgm-t" text-anchor="middle">Game engine</text>
+          <text x="620" y="81" class="dgm-s" text-anchor="middle">VISUALIZER</text>
+
+          <path d="M142,68 L168,68" class="dgm-line" marker-end="url(#arwB)"></path>
+          <path d="M302,68 L328,68" class="dgm-line" marker-end="url(#arwB)"></path>
+          <path d="M502,68 L528,68" class="dgm-line" marker-end="url(#arwB)"></path>
+
+          <text x="16" y="126" class="dgm-s">PUNCH → FEEDBACK ≈ 160–230 ms · INFERENCE ITSELF IS UNDER 1 ms</text>
+
+          <path d="M16,152 L704,152" class="dgm-line" stroke-dasharray="3 4"></path>
+
+          <text x="16" y="184" class="dgm-head">PATH B · AVATAR POSE</text>
+
+          <rect x="60"  y="200" width="150" height="56" class="dgm-box"></rect>
+          <text x="135" y="224" class="dgm-t" text-anchor="middle">Phone · P1</text>
+          <text x="135" y="241" class="dgm-s" text-anchor="middle">VISUALIZER</text>
+
+          <rect x="285" y="200" width="150" height="56" class="dgm-box"></rect>
+          <text x="360" y="224" class="dgm-t" text-anchor="middle">Broker</text>
+          <text x="360" y="241" class="dgm-s" text-anchor="middle">COMMS</text>
+
+          <rect x="510" y="200" width="150" height="56" class="dgm-box"></rect>
+          <text x="585" y="224" class="dgm-t" text-anchor="middle">Phone · P2</text>
+          <text x="585" y="241" class="dgm-s" text-anchor="middle">VISUALIZER</text>
+
+          <path d="M210,220 L277,220" class="dgm-line-b" marker-end="url(#arwC)"></path>
+          <path d="M277,240 L217,240" class="dgm-line-b" marker-end="url(#arwC)"></path>
+          <path d="M435,220 L502,220" class="dgm-line-b" marker-end="url(#arwC)"></path>
+          <path d="M502,240 L442,240" class="dgm-line-b" marker-end="url(#arwC)"></path>
+
+          <text x="16" y="286" class="dgm-s">≈ 60–110 ms · NEVER GOES THROUGH THE ULTRA96</text>
+        </svg>
+      </div>
+      <figcaption>Path B is new work that our original architecture never planned for. It is
+        continuous, high-rate, and it must not be routed through the Ultra96 — it is not AI work,
+        and putting it there would slow down both paths for nothing.</figcaption>
+    </figure>
+
+    <h3>Inside the Ultra96</h3>
+
+    <p>The FPGA holds the trained network and nothing else. Everything that changes per player —
+      calibration especially — happens on the ARM processor <em>before</em> data reaches the chip.
+      We cannot re-burn a bitstream in the lobby, so personalisation has to live upstream. Getting
+      this boundary wrong means rebuilding in Week 9, which is why it is written down now.</p>
+  </section>
+
+  <section id="owns">
+    <div class="sec-head">
+      <h2>What this asks of each of us</h2>
+    </div>
+
+    <div class="owners">
+      <div class="owner">
+        <p class="owner-band">Hardware Sensors</p>
+        <div class="owner-body">
+          <p>Four arm nodes, mounted to survive repeated impact. Possibly six more IMUs on a wired
+            harness if we take option B.</p>
+          <p class="ask">Decide: arm chain, yes or no? And confirm how many Beetles we actually get.</p>
+        </div>
+      </div>
+
+      <div class="owner">
+        <p class="owner-band">Comms</p>
+        <div class="owner-body">
+          <p>The usual Beetle→laptop→Ultra96 path, <em>plus</em> a continuous pose stream between
+            two phones that has a tighter latency budget than the combat path does.</p>
+          <p class="ask">Decide: does the broker carry Path B, and can it hold ~100 ms?</p>
+        </div>
+      </div>
+
+      <div class="owner is-ours">
+        <p class="owner-band">Software / Hardware AI — mine</p>
+        <div class="owner-body">
+          <p>Ten gesture classes plus punch strength, running continuously on four sensor streams,
+            accelerated on the FPGA. Calibration, and the model that has to work on a stranger.
+            Plus the early-warning head, and the data labelling it needs.</p>
+          <p class="ask">I own the contract on both ends. I need the formats frozen well before Week 7.</p>
+        </div>
+      </div>
+
+      <div class="owner">
+        <p class="owner-band">Software Visualizer</p>
+        <div class="owner-body">
+          <p>Avatar rendering and skeleton solving, world anchoring, crates, inventory, health and
+            stamina, the game engine, and consuming the pose stream. The attack indicator is three
+            shapes and a fade — the one cheap thing on this list.</p>
+          <p class="ask">This is the biggest single workload in the project. Say now if it is too much.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="caution">
+      <h3>My honest read on the biggest risk</h3>
+      <p>It is not the AI and it is not the FPGA. It is that this design quietly loads an enormous
+        amount onto the Visualizer, and if that is not working by Week 9, my subsystem has nothing
+        to talk to and yours has nothing to show. I would rather cut features tomorrow than find
+        this out in October.</p>
+    </div>
+  </section>
+
+  <section id="plan">
+    <div class="sec-head">
+      <h2>How we get there</h2>
+    </div>
+
+    <div class="track">
+      <div class="stop">
+        <p class="when">By Week 7</p>
+        <p class="what">Every subsystem works on fake data. For me: the whole pipeline in software,
+          six punch classes, <em>no FPGA yet</em>. Plus a dumb threshold-based baseline — cheap to
+          build, and beating it on players the model has never seen is our proof the AI earns its place.</p>
+      </div>
+      <div class="stop">
+        <p class="when">Weeks 7–9</p>
+        <p class="what">The FPGA route: C simulation, synthesis, co-simulation, then the block
+          diagram and data plumbing. <strong>The plumbing is where projects stall, not the network.</strong>
+          Ten classes. First real match. The early-warning head goes in here, once there is enough
+          onset-labelled data to train it on.</p>
+      </div>
+      <div class="stop">
+        <p class="when">Week 9 or 10</p>
+        <p class="what">Integration check with a mandatory demo. Which week is genuinely unclear —
+          our own sources disagree, so someone should ask the TA.</p>
+      </div>
+      <div class="stop">
+        <p class="when">Week 12</p>
+        <p class="what">Fully integrated, tested with a random player. Not graded, but it is the
+          honest test of whether "works on anyone" is true.</p>
+      </div>
+      <div class="stop">
+        <p class="when">Week 13</p>
+        <p class="what">Final demo — 30% of the grade — plus poster and report.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="unsure">
+    <div class="sec-head">
+      <h2>Where I am not confident</h2>
+    </div>
+
+    <p>Worth saying plainly, so nobody builds on top of something soft.</p>
+
+    <div class="decisions">
+      <div class="dec is-open">
+        <div class="dec-top">
+          <span class="chip open">Open</span>
+          <span class="chip who">Team + TA</span>
+          <h3>How long is a round?</h3>
+        </div>
+        <p>I do not have a number and I am not going to invent one. Round length should
+          <em>fall out</em> of the health pool divided by expected damage per second, with the timer
+          as a backstop against a stalemate. Two sanity checks on whatever we land on: real boxing
+          rounds are about three minutes with rest in between, and the final demo needs to run long
+          enough for an evaluator to see every mechanic at least once. Nothing in the module
+          materials says how long a demo slot is — worth asking rather than guessing.</p>
+      </div>
+
+      <div class="dec is-open">
+        <div class="dec-top">
+          <span class="chip open">Unproven</span>
+          <span class="chip who">Mine</span>
+          <h3>The gestures are reasoned, not measured</h3>
+        </div>
+        <p>The three item gestures are picked from physical reasoning about what a forearm sensor
+          can distinguish. That reasoning is sound but nobody has recorded real data yet. If one
+          turns out to collide with a punch, we swap it. Low risk, but not zero.</p>
+      </div>
+
+      <div class="dec is-open">
+        <div class="dec-top">
+          <span class="chip open">Honest caveat</span>
+          <span class="chip who">Mine</span>
+          <h3>The FPGA is not strictly necessary at this scale</h3>
+        </div>
+        <p>Running the numbers, the network is small enough that the ARM core on the Ultra96 could
+          probably handle it. I would rather we say that out loud than get asked in the viva. The
+          real arguments are predictable timing under load, keeping the processor free for
+          everything else, energy per inference, and room to grow. Option B in
+          <a href="#avatar">the avatar section</a> makes this meaningfully stronger, because it
+          roughly triples the input size — and <a href="#telegraph">the telegraph</a> makes it
+          stronger again, because catching a punch at its onset means running the network four to
+          eight times as often. Both of those come from product decisions rather than from me
+          padding the numbers, which is the only kind of justification that survives being
+          questioned.</p>
+      </div>
+
+      <div class="dec is-open">
+        <div class="dec-top">
+          <span class="chip open">Unproven</span>
+          <span class="chip who">Mine</span>
+          <h3>Whether the early warning is accurate enough to be worth showing</h3>
+        </div>
+        <p>The physics says a hook is distinguishable from a straight within the first few
+          hundredths of a second, and I believe that. What I cannot promise yet is the false-alarm
+          rate, and that is the number that decides whether the mechanic is fun or noise. If it
+          cries wolf, we cut it — the rest of the design does not depend on it. It also needs
+          training data annotated with punch onsets, which is more labelling work than we had
+          planned for.</p>
+      </div>
+
+      <div class="dec">
+        <div class="dec-top">
+          <span class="chip set">Settled</span>
+          <span class="chip who">Mine</span>
+          <h3>Timing numbers are estimates</h3>
+        </div>
+        <p>Every millisecond figure here is a target to measure against, not a measurement. They
+          are the right order of magnitude and the shape of the budget is right — inference is the
+          cheapest part, waiting for enough of the punch to have happened is the expensive part.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="safety">
+    <div class="sec-head">
+      <h2>Safety, because the report requires it in writing</h2>
+    </div>
+
+    <p>Separated rings remove the risk of hitting each other. They do not remove walls, furniture,
+      trip hazards or bystanders — and every player has a phone strapped over their eyes.</p>
+
+    <ul class="stack">
+      <li>A minimum clear square of about 2.5 × 2.5 m each, floor cleared first.</li>
+      <li>Draw the ring boundary in AR and warn when someone nears the edge. Cheap to build, and it
+        is a safety control and a feature at the same time.</li>
+      <li>Someone spotting whenever an outsider plays, including the Week 12 test.</li>
+      <li>Test that the phone mount actually holds during full-speed punching before a stranger
+        wears it.</li>
+      <li>Strap checks, no jewellery, capped session length.</li>
+    </ul>
+  </section>
+
+  <footer>
+    <p>Full technical detail — interface contracts, network architecture, latency breakdown,
+      resource budgets — is in the companion design document. This page is the argument; that one
+      is the spec.</p>
+    <p>Sources: project specification, Overview / Comms / AI lecture decks, design report template.
+      Prior CG4002 project work not used.</p>
+  </footer>
+
+</div>

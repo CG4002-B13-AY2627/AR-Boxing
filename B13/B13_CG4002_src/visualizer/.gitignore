@@ -1,0 +1,45 @@
+# Unity generated
+[Ll]ibrary/
+[Tt]emp/
+[Oo]bj/
+[Bb]uild/
+[Bb]uilds/
+[Ll]ogs/
+[Uu]ser[Ss]ettings/
+[Mm]emoryCaptures/
+[Rr]ecordings/
+
+# IDEs
+.vs/
+.vscode/
+.idea/
+*.csproj
+*.sln
+*.suo
+*.user
+*.userprefs
+*.pidb
+*.booproj
+*.svd
+*.pdb
+*.mdb
+*.opendb
+*.VC.db
+
+# macOS / Windows
+.DS_Store
+Thumbs.db
+
+# Builds and signing
+*.ipa
+*.dSYM
+*.dSYM.zip
+DerivedData/
+
+# Local Python tooling
+.venv/
+__pycache__/
+*.pyc
+
+# Local scratch
+tmp/

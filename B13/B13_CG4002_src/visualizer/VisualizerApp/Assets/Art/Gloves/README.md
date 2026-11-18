@@ -1,0 +1,2 @@
+"Boxing Gloves - Right Handed" (https://skfb.ly/6XPGF) by Gohar.Munir is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).
+"Boxing Gloves - Left Handed" (https://skfb.ly/6XOUS) by Gohar.Munir is licensed under Creative Commons Attribution (http://creativecommons.org/licenses/by/4.0/).

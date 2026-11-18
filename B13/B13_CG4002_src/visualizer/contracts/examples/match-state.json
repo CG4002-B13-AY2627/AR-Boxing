@@ -1,0 +1,15 @@
+{
+  "type": "MatchState",
+  "seq": 574,
+  "timestamp": 12345700,
+  "player_1": {
+    "health": 75,
+    "stamina": 62
+  },
+  "player_2": {
+    "health": 39,
+    "stamina": 81
+  },
+  "round_time": 75.0,
+  "state": "FIGHTING"
+}

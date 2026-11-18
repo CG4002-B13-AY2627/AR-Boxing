@@ -1,0 +1,20 @@
+{
+  "name": "CG4002.Visualizer",
+  "rootNamespace": "CG4002.Visualizer",
+  "references": [
+    "Unity.XR.ARFoundation",
+    "Unity.XR.ARSubsystems",
+    "Unity.XR.CoreUtils",
+    "Unity.InputSystem",
+    "AprilTag.Runtime"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "autoReferenced": true,
+  "defineConstraints": [],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

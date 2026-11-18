@@ -1,0 +1,26 @@
+{
+  "type": "MatchState",
+  "seq": 576,
+  "timestamp": 12345820,
+  "player_1": {
+    "health": 60,
+    "stamina": 62
+  },
+  "player_2": {
+    "health": 39,
+    "stamina": 81
+  },
+  "round_time": 74.8,
+  "state": "FIGHTING",
+  "active_items": [
+    {
+      "id": "health-0042",
+      "item_type": "HEALTH",
+      "owner_player": 1,
+      "distance_m": 1.0,
+      "bearing_degrees": -25.0,
+      "magnitude": 25.0,
+      "remaining_ms": 8000
+    }
+  ]
+}

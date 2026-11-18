@@ -1,0 +1,15 @@
+{
+  "type": "GameEvent",
+  "seq": 575,
+  "timestamp": 12345800,
+  "event": "ITEM_PICKUP",
+  "source_player": 1,
+  "target_player": 1,
+  "punch": "",
+  "confidence": 1.0,
+  "intensity": 0.0,
+  "outcome": "NONE",
+  "item_id": "health-0042",
+  "item_type": "HEALTH",
+  "hand": "LEFT"
+}

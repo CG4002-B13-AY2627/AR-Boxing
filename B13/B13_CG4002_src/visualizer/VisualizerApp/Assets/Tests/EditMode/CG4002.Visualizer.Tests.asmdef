@@ -1,0 +1,14 @@
+{
+  "name": "CG4002.Visualizer.Tests",
+  "rootNamespace": "CG4002.Visualizer.Tests",
+  "references": ["CG4002.Visualizer"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": false,
+  "precompiledReferences": ["nunit.framework.dll"],
+  "autoReferenced": false,
+  "defineConstraints": ["UNITY_INCLUDE_TESTS"],
+  "versionDefines": [],
+  "noEngineReferences": false
+}

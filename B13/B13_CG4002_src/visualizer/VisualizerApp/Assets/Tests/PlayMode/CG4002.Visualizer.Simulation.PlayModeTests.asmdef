@@ -1,0 +1,5 @@
+{
+  "name": "CG4002.Visualizer.Simulation.PlayModeTests",
+  "references": ["CG4002.Visualizer"],
+  "optionalUnityReferences": ["TestAssemblies"]
+}
