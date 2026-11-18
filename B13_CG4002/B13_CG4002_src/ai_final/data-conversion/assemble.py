@@ -11,34 +11,56 @@ def cells(reps):
     for rep in reps:
         grouped.setdefault((rep.participant, rep.label), []).append(rep)
 
+    for participant, label in list(grouped):
+        if side(label) and label not in cc.REAL_ONLY:
+            grouped.setdefault((participant, flip(label)), [])
+
     return grouped
 
 
-def expanded(grouped, matrix, rng):
+def added(grouped, participant, label, reps, matrix, target, rng):
+    if label in cc.REAL_ONLY:
+        return []
+    if side(label) or label in cc.SELF_MIRRORED:
+        return mirrored(grouped.get((participant, flip(label)), []), matrix)
+    if label in cc.GLOVE_SPLICED:
+        return spliced(reps, max(target - len(reps), 0), rng)
+    return resampled(reps, max(target - len(reps), 0), rng)
+
+
+def expanded(grouped, matrix, target, rng):
     return {
-        (participant, label): reps + (
-            [] if label in cc.REAL_ONLY
-            else mirrored(grouped.get((participant, flip(label)), []), matrix)
-            if side(label) or label in cc.SELF_MIRRORED
-            else spliced(reps, max(cc.TARGET - len(reps), 0), rng) if label in cc.GLOVE_SPLICED
-            else resampled(reps, max(cc.TARGET - len(reps), 0), rng)
-        )
+        (participant, label): reps + added(grouped, participant, label, reps, matrix, target, rng)
         for (participant, label), reps in grouped.items()
     }
 
 
-def checked(grouped):
-    wrong = {cell: len(reps) for cell, reps in grouped.items() if len(reps) < cc.TARGET}
-    if wrong:
-        raise SystemExit(f"Cells below {cc.TARGET}: {wrong}")
-
-    return grouped
+def recorded(windows):
+    return [window for window in windows if window.source in (cc.REAL, cc.MIRRORED)]
 
 
-def assemble(table, rng):
-    real = recordings(table)
+def topped_up(grouped, target, rng):
+    return {
+        cell: windows + resampled(recorded(windows), max(target - len(windows), 0), rng)
+        for cell, windows in grouped.items()
+        if windows
+    }
+
+
+def missing(grouped, reps):
+    participants = sorted({rep.participant for rep in reps})
+    return [
+        (participant, label)
+        for participant in participants
+        for label in cc.LABEL_TO_ID
+        if (participant, label) not in grouped
+    ]
+
+
+def assemble(table, rng, target=cc.TARGET):
+    real, skipped = recordings(table)
     matrix = fit(real)
-    grouped = checked(expanded(cells(real), matrix, rng))
+    grouped = topped_up(expanded(cells(real), matrix, target, rng), target, rng)
     windows = [rep for _, reps in sorted(grouped.items()) for rep in reps]
 
-    return matrix, [windows[index] for index in rng.permutation(len(windows))]
+    return matrix, [windows[index] for index in rng.permutation(len(windows))], skipped, missing(grouped, real)

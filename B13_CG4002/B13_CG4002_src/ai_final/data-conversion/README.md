@@ -10,7 +10,7 @@ report.
 Run training once first, since this uses `pipeline/.venv`.
 
 ```bash
-./convert.sh 13-11-26.csv 18-11-26.csv --out ../pipeline/train/data/my-data.csv
+./convert.sh 18-11-26.csv --out ../pipeline/train/data/my-data.csv
 ```
 
 `convert.bat` on Windows, same arguments. Then set `CSV_NAME = "my-data.csv"` in
@@ -18,13 +18,15 @@ Run training once first, since this uses `pipeline/.venv`.
 
 | Argument | |
 |---|---|
-| recordings | One or more collector CSVs, merged in the order given |
+| recordings | One or more collector CSVs. The collector writes one per session date, so a dataset recorded over several days is several files, merged in the order given. |
 | `--out` | The training CSV. By default `../pipeline/train/data/converted.csv`. |
 | `--provenance` | Where each window came from. By default beside `--out`, as `<name>_provenance.csv`. |
+| `--target` | Windows per participant per class. By default 110. |
 | `--seed` | The random seed. By default the one in `train/config.py`. |
 
-It prints the mirror it fitted and the number of windows per participant, class and source. The
-same recordings and seed always give the same CSV.
+It prints the mirror it fitted, anything it skipped, any participant and class with no windows,
+and the number of windows per participant, class and source. The same recordings and seed always
+give the same CSV.
 
 ## What it does
 
@@ -36,11 +38,24 @@ same recordings and seed always give the same CSV.
 | Real only | Hooks are never mirrored, since a mirrored hook lands between hook and uppercut |
 | Glove splicing | For block, a new window takes its left glove from one repetition and its right glove from another |
 | Resampling | For pickup and idle, each of the 12 channels comes from a random real repetition of the same participant and class |
+| Top-up | Any class still below the target, such as hooks with fewer than 110 real repetitions, is filled the same way by resampling its real and mirrored windows |
 | Shuffle | Shuffles the windows with the seed |
 
-Splicing and resampling fill each participant's class up to `TARGET`, 110 windows. The run stops if
-any class is still below it, if a repetition is not 32 samples long, or if no participant recorded
-an action with both hands.
+Every participant and class with at least one repetition comes out with at least the target number
+of windows. Classes with more real and mirrored windows than the target keep all of them.
+
+It works on any collector CSV, and skips what it cannot use:
+
+| Case | What happens |
+|---|---|
+| A repetition is not 32 samples long | Skipped, and counted in the output |
+| A label the model has no class for, such as `use` | Skipped, and counted in the output |
+| A participant never recorded a class, in either hand | That participant has no windows of it. Listed in the output. |
+| No participant recorded an action with both hands | Nothing is mirrored, and the top-up fills those classes instead |
+
+The more real repetitions per class, the fewer windows are synthesized. Recording at least 55 of
+each action per participant, with both hands for the one-handed punches, keeps resampling to the
+classes the report applies it to.
 
 The output has one row per sample, with columns `index`, `participant`, the 12 channels and
 `label`. The label sits on the last row of each window.
@@ -68,7 +83,7 @@ from [`../pipeline/train/config.py`](../pipeline/train/config.py).
 
 | Setting | |
 |---|---|
-| `TARGET` | Windows per participant per class |
+| `TARGET` | Windows per participant per class, unless `--target` is given |
 | `REAL_ONLY`, `SELF_MIRRORED`, `GLOVE_SPLICED` | The classes that get each strategy. Every other one-handed class is mirrored, and every other two-handed class is resampled. |
 | `ACCEL_LSB_PER_G`, `GYRO_LSB_PER_DPS` | The IMU's scale at its configured range |
-| `RAW_ID_TO_LABEL` | The collector's label IDs. The model has no `use` class, so do not record it. |
+| `RAW_ID_TO_LABEL` | The collector's label IDs. Repetitions of `use` are skipped, since the model has no class for it. |

@@ -62,22 +62,33 @@ def rep_ids(table):
     return key.ne(key.shift()).any(axis=1).cumsum()
 
 
+def problem(run, label):
+    if len(run) != cc.WINDOW:
+        return f"not {cc.WINDOW} samples long"
+    if label not in cc.LABEL_TO_ID:
+        return f"labelled {label or int(run[cc.RAW_LABEL].iat[0])}, which the model has no class for"
+    return None
+
+
 def recordings(table):
-    runs = rep_ids(table)
-    short = (runs.value_counts() != cc.WINDOW).sum()
-    if short:
-        raise SystemExit(f"{short} reps are not {cc.WINDOW} samples long.")
-
     columns = raw_columns()
+    reps = []
+    skipped = {}
 
-    return [
-        Rep(
+    for _, run in table.groupby(rep_ids(table)):
+        label = cc.RAW_ID_TO_LABEL.get(int(run[cc.RAW_LABEL].iat[0]))
+        reason = problem(run, label)
+        if reason:
+            skipped[reason] = skipped.get(reason, 0) + 1
+            continue
+
+        reps.append(Rep(
             int(run[cc.RAW_USER].iat[0]),
-            cc.RAW_ID_TO_LABEL[int(run[cc.RAW_LABEL].iat[0])],
+            label,
             cc.REAL,
             int(run[cc.RAW_USER].iat[0]),
             (int(run.index[0]), int(run.index[-1])),
             run[columns].to_numpy(float)
-        )
-        for _, run in table.groupby(runs)
-    ]
+        ))
+
+    return reps, skipped

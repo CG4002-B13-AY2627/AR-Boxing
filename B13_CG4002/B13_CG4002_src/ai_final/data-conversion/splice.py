@@ -10,13 +10,12 @@ def glove_columns(node):
 
 
 def spliced(reps, count, rng):
+    pairs = len(reps) * (len(reps) - 1)
+    count = min(count, pairs)
     if not count:
         return []
 
     left, right = nodes()
-    pairs = len(reps) * (len(reps) - 1)
-    if pairs < count:
-        raise SystemExit(f"{len(reps)} reps give {pairs} glove pairings; {count} are needed.")
 
     first = reps[0]
     out = []

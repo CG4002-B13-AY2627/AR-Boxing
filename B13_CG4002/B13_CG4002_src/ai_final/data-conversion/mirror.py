@@ -54,7 +54,7 @@ def pairs(reps):
 def fit(reps):
     matched = pairs(reps)
     if not matched:
-        raise SystemExit("No participant recorded the same action with both hands.")
+        return None
 
     return min(
         candidates(),
@@ -63,6 +63,9 @@ def fit(reps):
 
 
 def mirrored(reps, matrix):
+    if matrix is None:
+        return []
+
     return [
         Rep(rep.participant, flip(rep.label), cc.MIRRORED, rep.donor, rep.rows, reflect(rep.signal, matrix))
         for rep in reps
