@@ -49,11 +49,14 @@ B13/
     │   ├── Ultra96/               game server: live dashboard, game_engine.py, visualizer_protocol.py, tests
     │   ├── esp/                   glove ESP32 firmware for P1 and P2 (left/right sketches)
     │   └── laptop/                TLS certificate generators for the gloves and phones
-    └── hw/
-        └── data collection code/  MPU6050 left/right sketches and datacollection.py labeller
+    ├── hw/
+    │   └── data collection code/  MPU6050 left/right sketches and datacollection.py labeller
+    └── visualizer/
+        ├── VisualizerApp/         Unity 6 iOS AR app (Assets, Packages, ProjectSettings)
+        ├── contracts/             protocol-v2 JSON schemas and golden examples
+        ├── docs/                  protocol.md, architecture and setup notes
+        └── tools/                 mock server, contract validator, Mac setup scripts
 ```
-
-The Unity visualizer is not in this folder; it lives in the [CG4002-Viz](https://github.com/zexueteh/CG4002-Viz) repository.
 
 ## Repository layout
 
@@ -63,9 +66,9 @@ The Unity visualizer is not in this folder; it lives in the [CG4002-Viz](https:/
 | &nbsp;&nbsp;[`ai/`](B13_CG4002_src/ai/README.md) | Dataset, training, quantization, HLS/Vivado bitstream pipeline, and the Ultra96 host code |
 | &nbsp;&nbsp;[`comms/`](B13_CG4002_src/comms/README.md) | Ultra96 game server and phone hub, glove (ESP32) firmware for P1/P2, certificate tools |
 | &nbsp;&nbsp;[`hw/`](B13_CG4002_src/hw/) | Two-hand MPU6050 data-collection firmware and the labelling collector |
+| &nbsp;&nbsp;[`visualizer/`](B13_CG4002_src/visualizer/README.md) | The Unity iOS AR visualizer and the protocol-v2 contracts (`contracts/`, `docs/protocol.md`) |
 | [`B13_CG4002_Training_Dataset/`](B13_CG4002_Training_Dataset/) | The team-recorded training CSV (`mike-tyson.csv`) |
 | [`B13_CG4002_Poster.pdf`](B13_CG4002_Poster.pdf) | Final project poster |
-| [`CG4002-Viz/`](https://github.com/zexueteh/CG4002-Viz) | **Git submodule:** the Unity iOS AR visualizer and the protocol-v2 contracts (`contracts/`, `docs/protocol.md`) |
 | `ai/`, `ai-comms-integration/`, `comms/`, `hw/` | Development history from before the final submission folder; kept for reference |
 | `poster-assets/` | Project poster sources and exports |
 | `viz/` | Placeholder; the visualizer lives in the `CG4002-Viz` submodule |
@@ -116,16 +119,11 @@ The left and right ESP32 sketches read an MPU6050 each at about 100 Hz; the righ
 
 ### Visualizer: iPhone AR client
 
-The `CG4002-Viz` submodule is a Unity 6 (6000.0.76f1) iOS app using AR Foundation/ARKit. It handles the WebSocket handshake and P1/P2 slots, menus and match flow, HUD, camera-relative gloves, AprilTag tracking of the opponent's belt tag, incoming-punch effects, floor-placed pickups, a tutorial and an optional Cardboard headset view. Build and deployment need a Mac with Xcode. Its README covers setup, tests and the protocol; the submodule is pinned, so develop in the [CG4002-Viz repository](https://github.com/zexueteh/CG4002-Viz), not inside this folder. To move the pin to the visualizer's latest `main`:
-
-```bash
-git -C CG4002-Viz fetch origin && git -C CG4002-Viz checkout origin/main
-git add CG4002-Viz && git commit -m "Update CG4002-Viz submodule"
-```
+[`B13_CG4002_src/visualizer/`](B13_CG4002_src/visualizer/README.md) is a Unity 6 (6000.0.76f1) iOS app using AR Foundation/ARKit. It handles the WebSocket handshake and P1/P2 slots, menus and match flow, HUD, camera-relative gloves, AprilTag tracking of the opponent's belt tag, incoming-punch effects, floor-placed pickups, a tutorial and an optional Cardboard headset view. Build and deployment need a Mac with Xcode. Its [README](B13_CG4002_src/visualizer/README.md) covers setup, tests and the protocol.
 
 ## Protocol between the Ultra96 and the phones
 
-Protocol v2: JSON messages over a full-duplex WebSocket, each carrying `type` and `protocol_version: 2`. The canonical schemas, golden examples and semantics live in the visualizer repository (`CG4002-Viz/contracts/` and `CG4002-Viz/docs/protocol.md`), and the server's tests validate its output against them.
+Protocol v2: JSON messages over a full-duplex WebSocket, each carrying `type` and `protocol_version: 2`. The canonical schemas, golden examples and semantics live in the visualizer folder ([`B13_CG4002_src/visualizer/contracts/`](B13_CG4002_src/visualizer/contracts/) and [`B13_CG4002_src/visualizer/docs/protocol.md`](B13_CG4002_src/visualizer/docs/protocol.md)), and the server's tests validate its output against them.
 
 | Message | Direction | Purpose |
 |---|---|---|
@@ -136,17 +134,17 @@ Protocol v2: JSON messages over a full-duplex WebSocket, each carrying `type` an
 | `GameEvent` | server -> phones | final punch, guard, weave and pickup outcomes |
 | `MatchState` | server -> phones | full health/stamina/timer/phase/items snapshot, about every 0.1 s |
 
-A contract change is made in CG4002-Viz first (schemas, examples, C# models, mock server, docs), then mirrored in `comms/Ultra96/visualizer_protocol.py` and its tests.
+A contract change is made in the visualizer first (schemas, examples, C# models, mock server, docs), then mirrored in `comms/Ultra96/visualizer_protocol.py` and its tests.
 
 ## Testing
 
 ```bash
 # Game server and phone hub (final comms package); point at the contracts for schema checks
 cd B13_CG4002_src/comms
-CG4002_CONTRACTS_DIR=../../../CG4002-Viz/contracts python -m unittest discover -s Ultra96
+CG4002_CONTRACTS_DIR=../visualizer/contracts python -m unittest discover -s Ultra96
 ```
 
-The visualizer's own checks (contract validation, mock server, Unity Edit/Play Mode tests) are described in `CG4002-Viz/README.md`. The AI pipeline checks itself during the `check` stage and on the board with `verify.sh`.
+The visualizer's own checks (contract validation, mock server, Unity Edit/Play Mode tests) are described in [`B13_CG4002_src/visualizer/README.md`](B13_CG4002_src/visualizer/README.md). The AI pipeline checks itself during the `check` stage and on the board with `verify.sh`.
 
 ## Security
 
