@@ -66,7 +66,7 @@ fpga/
 
 | File | Does |
 |---|---|
-| `hls/nn_infer.cpp` | The forward pass in synthesizable C++. Takes one 12 × 32 window of 8-bit integers and returns the 10 class scores. |
+| `hls/nn_infer.cpp` | The forward pass in synthesizable C++. Takes one $12 \times 32$ window of 8-bit integers and returns the 10 class scores. |
 | `hls/nn_tb.cpp` | Runs every golden input through `nn_infer` and compares the logits bit for bit |
 | `hls/params.hpp`, `weights.hpp`, `golden.h` | Include the generated headers for the width in `selected_width.hpp`, so no hand-written file names a width |
 | `hls/tcl/run_hls.tcl` | Runs the HLS flow in the order the mode asks for |

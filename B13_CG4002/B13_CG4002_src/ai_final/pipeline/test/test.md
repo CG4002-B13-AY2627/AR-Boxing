@@ -50,7 +50,7 @@ test/
 | `live.py` | Reads the gloves, fills the window buffer, classifies each window and post-processes the results into events |
 | `live_config.py` | Serial settings, log location and the arguments above |
 | `glove.py` | Finds the serial port and parses each line from the glove |
-| `conversion.py` | Converts raw sensor counts to m/s² and rad/s |
+| `conversion.py` | Converts raw sensor counts to m/s$^2$ and rad/s |
 | `build_model.py` | Runs the integer model from a run's `bitstream/` |
 | `checkpoint_model.py` | Runs a Brevitas checkpoint |
 | `lines.py`, `run_log.py` | Format the console output and write the session log |

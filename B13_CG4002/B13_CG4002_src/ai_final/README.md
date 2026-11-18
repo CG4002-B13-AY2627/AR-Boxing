@@ -18,12 +18,14 @@ for the details.
 ## Dataset
 
 [`pipeline/train/data/mike-tyson.csv`](pipeline/train/data/mike-tyson.csv), recorded by the four of
-us with both gloves.
+us with both gloves. To build a training CSV from new recordings, see
+[`data-conversion/`](data-conversion/README.md).
 
 ## Structure
 
 ```
 final-src-code/
+├── data-conversion/ collector recordings to the training CSV
 ├── pipeline/        dataset, training, export, HLS and Vivado, to a bitstream
 ├── ultra-96/        transfer to the board, and the code that runs on it
 └── out/             generated, one folder per pipeline run
