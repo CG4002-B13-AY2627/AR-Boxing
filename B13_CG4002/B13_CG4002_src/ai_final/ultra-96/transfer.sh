@@ -136,7 +136,7 @@ if [ -f "$ENV_FILE" ]; then
 fi
 
 HOST="${U96_HOST:-xilinx@makerslab-fpga-12.ddns.comp.nus.edu.sg}"
-JUMP="${U96_JUMP:-wayne@stujump.comp.nus.edu.sg}"
+JUMP="${U96_JUMP:-<nus-id>@stujump.comp.nus.edu.sg}"
 REMOTE_ROOT="${U96_ROOT:-ai}"
 
 # --- password handling ------------------------------------------------------

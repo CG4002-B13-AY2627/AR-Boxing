@@ -99,7 +99,7 @@ if exist "%U96_ENV%" (
 )
 
 if not defined U96_HOST set "U96_HOST=xilinx@makerslab-fpga-12.ddns.comp.nus.edu.sg"
-if not defined U96_JUMP set "U96_JUMP=wayne@stujump.comp.nus.edu.sg"
+if not defined U96_JUMP set "U96_JUMP=<nus-id>@stujump.comp.nus.edu.sg"
 if not defined U96_ROOT set "U96_ROOT=ai"
 
 rem --- password handling ------------------------------------------------------
