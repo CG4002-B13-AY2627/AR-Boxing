@@ -1,0 +1,868 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AR Boxing Canva</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<style>
+  /* A1 portrait: 594 x 841 mm. Everything is sized in mm/pt so print is exact. */
+  @page { size: 594mm 841mm; margin: 0; }
+
+  :root {
+    --paper: #F4F1EA;
+    --card: #FFFFFF;
+    --ink: #16171B;
+    --muted: #5C5E63;
+    --rule: #D9D4C8;
+    --night: #14161C;
+    --night-2: #1F232C;
+    --red: #C8232C;
+    --blue: #1F5FA8;
+    --sky: #5B9BE6;
+    --gold: #E7A615;
+    --teal: #0E8C82;
+    --orange: #DD6B20;
+    --red-tint: #F8E3E2;
+    --blue-tint: #E1EAF5;
+    --teal-tint: #DDF0EE;
+    --orange-tint: #FCEBDD;
+    --gold-tint: #FBF0D5;
+    --display: "Big Shoulders Display", "Arial Narrow", "Helvetica Neue", sans-serif;
+    --body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: #8C8A85;
+    color: var(--ink);
+    font-family: var(--body);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  @media print { body { background: var(--paper); } }
+
+  .poster {
+    width: 594mm;
+    height: 841mm;
+    margin: 0 auto;
+    background: var(--paper);
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    font-size: 15pt;
+    line-height: 1.32;
+  }
+
+  /* ---------------- header ---------------- */
+  header {
+    background: var(--night);
+    color: #F4F1EA;
+    padding: 10mm 30mm 6mm;
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: end;
+    gap: 12mm;
+  }
+  header::after {            /* red/blue corner bar: the two corners of a ring */
+    content: "";
+    position: absolute; left: 0; right: 0; bottom: 0; height: 4mm;
+    background: linear-gradient(90deg, var(--red) 0 50%, var(--blue) 50% 100%);
+  }
+  .kicker {
+    display: flex;
+    gap: 10mm;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15pt;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 0 0 3mm;
+  }
+  h1 {
+    font-family: var(--display);
+    font-weight: 900;
+    font-size: 138pt;
+    line-height: 0.8;
+    letter-spacing: 0.01em;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  h1 .r { color: var(--red); }
+  h1 .b { color: var(--sky); }
+  .tagline {
+    font-size: 22pt;
+    font-weight: 500;
+    line-height: 1.2;
+    margin: 4mm 0 0;
+    color: #E6E2D8;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 56mm);
+    gap: 3mm;
+    margin-bottom: 1mm;
+  }
+  .stat {
+    background: var(--night-2);
+    border-top: 1.8mm solid var(--gold);
+    padding: 2.4mm 4mm 2.6mm;
+  }
+  .stat.r { border-color: var(--red); }
+  .stat.b { border-color: var(--sky); }
+  .stat b {
+    display: block;
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 32pt;
+    line-height: 0.95;
+    white-space: nowrap;
+  }
+  .stat > span { font-size: 11.5pt; color: #B8B5AD; line-height: 1.2; display: block; margin-top: 1mm; }
+
+  /* ---------------- body ---------------- */
+  main {
+    flex: 1;
+    padding: 4mm 30mm 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3mm;
+  }
+  .sec-head {
+    display: flex;
+    align-items: baseline;
+    gap: 5mm;
+    margin: 0 0 2mm;
+  }
+  .sec-head .num {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15pt;
+    color: var(--red);
+    letter-spacing: 0.1em;
+  }
+  h2 {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 40pt;
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0;
+  }
+  .sec-head p { margin: 0 0 0 auto; color: var(--muted); font-size: 17pt; }
+
+  .panel {
+    background: var(--card);
+    border: 0.6mm solid var(--rule);
+    padding: 6mm 7mm;
+  }
+  .panel h3, .ptitle {
+    font-family: var(--display);
+    font-weight: 800;
+    font-size: 34pt;
+    line-height: 1;
+    text-transform: uppercase;
+    margin: 0 0 3mm;
+  }
+  .panel p { margin: 0 0 3mm; }
+
+  /* ---------------- row: overview / features / use cases ---------------- */
+  .intro {
+    display: grid;
+    grid-template-columns: 182mm 212mm 1fr;
+    gap: 6mm;
+  }
+  .intro .panel { border-top: 2.2mm solid var(--red); }
+  .intro .panel.feat { border-top-color: var(--gold); }
+  .howto { display: grid; grid-template-columns: repeat(3, 1fr); gap: 3.5mm; margin-top: 4mm; }
+  .howto > div { background: var(--paper); padding: 3mm 3.5mm 3.5mm; }
+  .howto .k {
+    display: flex; align-items: center; gap: 2.5mm;
+    font-family: var(--display); font-weight: 800; font-size: 22pt; line-height: 1; text-transform: uppercase;
+    margin-bottom: 1.5mm;
+  }
+  .howto .k i {
+    font-style: normal; width: 8mm; height: 8mm; border-radius: 50%;
+    background: var(--gold); color: var(--night); display: grid; place-items: center;
+    font-size: 15pt;
+  }
+  .howto > div > span { font-size: 13pt; line-height: 1.28; display: block; color: #33353A; }
+  .fine { font-size: 12.5pt; color: var(--muted); margin-top: 3mm !important; }
+
+  .feats { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 2.4mm 4mm; }
+  .feats li { display: grid; grid-template-columns: 7.5mm 1fr; gap: 2.2mm; align-items: start; font-size: 12pt; line-height: 1.22; }
+  .feats li b { display: block; font-size: 13pt; }
+  .feats svg { width: 7.5mm; height: 7.5mm; }
+
+  .uses-p { background: var(--night); color: #EDEAE2; padding: 5mm 6.5mm; border-top: 2.2mm solid var(--sky); }
+  .uses-p .ptitle { color: #fff; }
+  .usecase { display: grid; grid-template-columns: 9mm 1fr; gap: 3mm; margin-bottom: 2.6mm; align-items: start; }
+  .usecase svg { width: 9mm; height: 9mm; }
+  .usecase b { display: block; color: var(--gold); font-size: 14.5pt; }
+  .usecase > div > span { font-size: 13pt; color: #C9C5BC; line-height: 1.26; display: block; }
+
+  /* ---------------- move set ---------------- */
+  .moves { display: grid; grid-template-columns: 92mm repeat(8, 1fr); gap: 3.6mm; }
+  .moves .lead { background: var(--night); color: #EDEAE2; padding: 5mm 5.5mm; }
+  .moves .lead .ptitle { color: #fff; font-size: 30pt; margin-bottom: 2mm; }
+  .moves .lead p { margin: 0 0 2mm; font-size: 13pt; line-height: 1.28; color: #C9C5BC; }
+  .moves .lead p b { color: var(--gold); }
+  .move {
+    background: var(--card);
+    border: 0.6mm solid var(--rule);
+    border-top: 2.2mm solid var(--red);
+    padding: 2.4mm 2.6mm 3mm;
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    position: relative;
+  }
+  .move.def { border-top-color: var(--blue); }
+  .move.itm { border-top-color: var(--gold); }
+  .move svg { width: 100%; height: 22mm; display: block; }
+  .move .mn { font-family: var(--display); font-weight: 800; font-size: 25pt; line-height: 1; text-transform: uppercase; margin-top: 1mm; }
+  .move .mc { font-family: var(--mono); font-size: 10.5pt; color: var(--muted); letter-spacing: 0.02em; margin-top: 0.8mm; }
+  .move .me { font-size: 12pt; line-height: 1.25; margin-top: 1.8mm; }
+  .move .hand {
+    position: absolute; top: 2mm; right: 2.2mm;
+    font-family: var(--mono); font-size: 9.5pt; font-weight: 600; color: var(--muted);
+  }
+
+  /* ---------------- architecture ---------------- */
+  .archrow { display: grid; grid-template-columns: 365mm 1fr; gap: 6mm; }
+  .arch { background: var(--card); border: 0.6mm solid var(--rule); padding: 4.5mm 5.1mm 3.5mm; }
+  .dia-wrap { width: 353.6mm; height: 115.6mm; position: relative; }
+  .dia { position: relative; width: 520mm; height: 170mm; zoom: 0.68; }
+  .dia svg { position: absolute; left: 0; top: 0; width: 520mm; height: 170mm; }
+  .dia .t {
+    position: absolute;
+    font-size: 5.2mm;
+    line-height: 8mm;
+    color: var(--muted);
+    white-space: nowrap;
+  }
+  .dia .t b { display: block; color: var(--ink); font-size: 6.4mm; }
+  .dia .m {
+    position: absolute;
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 5mm;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    color: var(--muted);
+  }
+  .dia .ps { line-height: 9mm; color: var(--ink); font-size: 5.4mm; }
+  .dia .eng { line-height: 9.3mm; color: #C9C5BC; }
+  .dia .eng b { color: #fff; font-size: 6.2mm; }
+  .dia .small { font-size: 4.6mm; line-height: 6.5mm; }
+  .dia .ctr { text-align: center; }
+
+  .side { display: flex; flex-direction: column; gap: 4mm; }
+  .side .panel { padding: 4mm 5.5mm; flex: 1; }
+  .side h4, .box h4 {
+    font-family: var(--mono); font-weight: 600; font-size: 12pt; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--red); margin: 0 0 2.5mm;
+  }
+  table.links { width: 100%; border-collapse: collapse; font-size: 12.2pt; line-height: 1.22; }
+  table.links th { text-align: left; font-family: var(--mono); font-size: 10pt; color: var(--muted); font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; padding: 0 0 1.5mm; border-bottom: 0.5mm solid var(--ink); }
+  table.links td { padding: 1.6mm 2mm 1.6mm 0; border-bottom: 0.3mm solid var(--rule); vertical-align: top; }
+  table.links td:first-child { font-weight: 600; white-space: nowrap; }
+  .bars { display: flex; flex-direction: column; gap: 2mm; }
+  .bar { display: grid; grid-template-columns: 17mm 1fr 18mm; gap: 2.5mm; align-items: center; font-size: 12.5pt; }
+  .bar .lbl { font-family: var(--mono); font-size: 11pt; font-weight: 600; }
+  .bar .trk { height: 5mm; background: var(--orange-tint); position: relative; }
+  .bar .trk i { position: absolute; left: 0; top: 0; bottom: 0; background: var(--orange); display: block; }
+  .bar .v { text-align: right; }
+  .side .fine { margin: 2.5mm 0 0 !important; font-size: 11.5pt; line-height: 1.25; }
+
+  /* ---------------- pipeline ---------------- */
+  .pipe { background: var(--card); border: 0.6mm solid var(--rule); padding: 4.5mm 5.4mm 4.5mm; }
+  .chain { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4.2mm; }
+  .stg { position: relative; border: 0.6mm solid var(--rule); background: #FBFAF7; display: flex; flex-direction: column; }
+  .stg + .stg::before {
+    content: ""; position: absolute; left: -4.2mm; top: 50%; width: 4.2mm; height: 0;
+    border-top: 0.7mm solid var(--ink);
+  }
+  .stg + .stg::after {
+    content: ""; position: absolute; left: -1.6mm; top: calc(50% - 1.5mm);
+    border: 1.5mm solid transparent; border-left: 1.8mm solid var(--ink); border-right: 0;
+  }
+  .stg .hd {
+    color: #fff; font-family: var(--mono); font-weight: 600; font-size: 10pt; letter-spacing: 0.06em;
+    text-transform: uppercase; padding: 1.4mm 2.5mm; display: flex; justify-content: space-between;
+  }
+  .stg .hd s { text-decoration: none; opacity: 0.85; }
+  .stg.hw .hd { background: var(--red); }
+  .stg.cm .hd { background: var(--teal); }
+  .stg.ai .hd { background: var(--orange); }
+  .stg.ge .hd { background: var(--night); color: var(--gold); }
+  .stg.vz .hd { background: var(--blue); }
+  .stg .bd { padding: 2.2mm 2.6mm 2.4mm; flex: 1; display: flex; flex-direction: column; }
+  .stg .bd b { font-family: var(--display); font-weight: 800; font-size: 21pt; line-height: 1; text-transform: uppercase; }
+  .stg .bd > span { font-size: 11pt; line-height: 1.24; color: #33353A; margin-top: 1.2mm; display: block; }
+  .stg .kpi { margin-top: auto; padding-top: 1.5mm; font-size: 16pt; font-weight: 700; line-height: 1.05; }
+  .stg .kpi small { display: block; font-size: 10pt; font-weight: 500; color: var(--muted); margin-top: 0.5mm; }
+
+  .budget { display: grid; grid-template-columns: 52mm 1fr; gap: 5mm; align-items: center; margin-top: 4mm; }
+  .budget .bl b { display: block; font-family: var(--display); font-size: 21pt; font-weight: 800; text-transform: uppercase; line-height: 1; }
+  .budget .bl > span { font-size: 11.5pt; color: var(--muted); }
+  .stack { display: flex; height: 9mm; font-size: 12pt; color: #fff; font-weight: 600; }
+  .stack > div { display: flex; align-items: center; padding: 0 3mm; white-space: nowrap; }
+  .stack .w { background: #8A8C91; flex: 40; }
+  .stack .p { background: var(--teal); flex: 8; }
+  .stack .l { background: var(--orange); flex: 2; padding: 0; justify-content: center; }
+  .ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: 10pt; color: var(--muted); margin-top: 1mm; }
+  .budget .note { font-size: 11.5pt; color: var(--muted); margin-top: 1mm; }
+
+  .contracts { display: grid; grid-template-columns: 1.25fr 1fr 1fr 1fr; gap: 4.2mm; margin-top: 4mm; }
+  .box { border: 0.6mm solid var(--rule); background: #FBFAF7; padding: 3mm 4mm 3.2mm; font-size: 11.8pt; line-height: 1.26; }
+  .box h4 { color: var(--ink); display: flex; align-items: center; gap: 2mm; letter-spacing: 0.06em; font-size: 11pt; }
+  .pill { font-family: var(--mono); font-size: 8.5pt; font-weight: 600; color: #fff; padding: 0.4mm 1.6mm; letter-spacing: 0.04em; border-radius: 0.8mm; }
+  .pill.hw { background: var(--red); } .pill.cm { background: var(--teal); } .pill.ai { background: var(--orange); }
+  .pill.ge { background: var(--night); color: var(--gold); box-shadow: inset 0 0 0 0.3mm var(--gold); } .pill.vz { background: var(--blue); }
+  .bytes { display: flex; gap: 0.6mm; margin: 1mm 0 2mm; }
+  .bytes > div { text-align: center; padding: 1mm 0.4mm 0.8mm; font-family: var(--mono); font-size: 8.4pt; line-height: 1.15; font-weight: 600; min-width: 0; }
+  .bytes > div small { display: block; font-weight: 500; font-size: 6.2pt; letter-spacing: -0.02em; opacity: 0.85; }
+  .bytes .f { background: var(--night); color: #fff; }
+  .bytes .h { background: #D9D4C8; }
+  .bytes .c { background: var(--gold-tint); }
+  .bytes .a { background: var(--red-tint); }
+  .bytes .g { background: var(--blue-tint); }
+  .bytes .s { background: var(--teal-tint); }
+  .box .eq { margin: 1mm 0 1.6mm; font-size: 13.5pt; }
+
+  /* ---------------- subsystem cards around the boxer ---------------- */
+  .cards {
+    position: relative;
+    display: grid;
+    grid-template-columns: 195mm 144mm 195mm;
+    grid-template-rows: 83mm 83mm;
+    row-gap: 6mm;
+  }
+  .boxer { position: absolute; left: 0; top: 0; width: 534mm; height: 172mm; z-index: 0; }
+  .card {
+    position: relative; z-index: 1;
+    background: var(--card);
+    border: 0.6mm solid var(--rule);
+    border-left: 3mm solid var(--ink);
+    padding: 5mm 7mm 5mm;
+    display: flex;
+    flex-direction: column;
+  }
+  .card.hw   { border-left-color: var(--red);    grid-column: 3; grid-row: 1; }
+  .card.comm { border-left-color: var(--teal);   grid-column: 1; grid-row: 1; }
+  .card.ai   { border-left-color: var(--orange); grid-column: 3; grid-row: 2; }
+  .card.viz  { border-left-color: var(--blue);   grid-column: 1; grid-row: 2; }
+  .card-top { display: flex; align-items: baseline; justify-content: space-between; gap: 4mm; }
+  .card h3 {
+    font-family: var(--display); font-weight: 800; font-size: 36pt; line-height: 1;
+    text-transform: uppercase; margin: 0;
+  }
+  .tag { font-size: 15pt; color: var(--muted); white-space: nowrap; }
+  .role { font-size: 15.5pt; font-weight: 600; margin: 2mm 0 2.4mm; line-height: 1.2; }
+  .card ul { margin: 0; padding: 0; list-style: none; }
+  .card li { position: relative; padding-left: 5.5mm; margin: 0 0 1.3mm; font-size: 13.4pt; line-height: 1.26; }
+  .card li::before { content: ""; position: absolute; left: 0; top: 0.45em; width: 2.4mm; height: 2.4mm; background: var(--ink); }
+  .card.hw li::before   { background: var(--red); }
+  .card.comm li::before { background: var(--teal); }
+  .card.ai li::before   { background: var(--orange); }
+  .card.viz li::before  { background: var(--blue); }
+  .metric {
+    margin-top: auto; display: grid; grid-template-columns: auto 1fr; gap: 5mm; align-items: center;
+    background: var(--paper); padding: 2.4mm 4.5mm;
+  }
+  .metric b { font-size: 22pt; line-height: 1; white-space: nowrap; }
+  .metric > span { font-size: 12pt; color: var(--muted); line-height: 1.22; }
+  .card.hw .metric b { color: var(--red); } .card.comm .metric b { color: var(--teal); }
+  .card.ai .metric b { color: var(--orange); } .card.viz .metric b { color: var(--blue); }
+
+  /* AI card: layer-by-layer architecture */
+  .layers { display: flex; align-items: stretch; gap: 0.5mm; margin: 0.5mm 0 1.2mm; }
+  .layer {
+    flex: 1 1 0; background: var(--orange-tint); border: 0.5mm solid #F2C29C;
+    padding: 1mm 0.4mm 1.2mm; display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+    text-align: center; min-width: 0;
+  }
+  .layer.in { background: #fff; }
+  .layer.out { background: var(--orange); border-color: var(--orange); color: #fff; }
+  .layer .ln { font-family: var(--mono); font-size: 8pt; font-weight: 600; color: #A4480F; white-space: nowrap; }
+  .layer.out .ln { color: #FFF1E6; }
+  .layer .ls { font-size: 12.5pt; line-height: 1.2; margin-top: 0.6mm; white-space: nowrap; }
+  .arr { align-self: center; font-size: 10pt; color: var(--muted); }
+  .cap { font-size: 11pt; color: var(--muted); line-height: 1.25; margin-bottom: 2mm; }
+
+  /* ---------------- design choices ---------------- */
+  .designs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5mm; }
+  .design { background: var(--night); color: #D9D5CC; padding: 4.5mm 5.5mm 5mm; font-size: 13pt; line-height: 1.28; }
+  .design b { display: block; color: #fff; font-family: var(--display); font-weight: 800; font-size: 25pt; line-height: 1; text-transform: uppercase; margin: 1.8mm 0 1.6mm; }
+  .design .pills { display: flex; gap: 1.4mm; }
+  .design em { font-style: normal; color: var(--gold); font-weight: 600; }
+
+  footer {
+    margin-top: auto;
+    padding: 2.5mm 30mm 10mm;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 13pt;
+    color: var(--muted);
+    letter-spacing: 0.04em;
+  }
+  footer .bar2 { display: flex; }
+  footer .bar2 i { width: 16mm; height: 3mm; display: block; }
+
+
+
+  /* ---------------- LaTeX (KaTeX) ---------------- */
+  .katex { font-size: 1.06em; }
+  .stat > b .katex { font-size: 0.92em; }
+  .howto .k i .katex { font-size: 1em; font-weight: 700; }
+  .layer .ln .katex { font-size: 1em; }
+
+  /* ---------------- Canva build: labels in mono caps ---------------- */
+  .dia .m.sc { font-size: 6mm; color: var(--ink); top: -1.5mm !important; letter-spacing: 0.1em; }
+  .tag { font-family: var(--mono); font-size: 11.5pt; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+  .boxer .callout { font-family: var(--mono); font-weight: 600; letter-spacing: 0.06em; }
+  .util { display: grid; grid-template-columns: repeat(4, 1fr); gap: 2.5mm; }
+  .util > div { background: var(--orange-tint); border-top: 1.4mm solid var(--orange); padding: 2mm 2.5mm 2.4mm; }
+  .util b { display: block; font-size: 17pt; line-height: 1.05; color: #A4480F; }
+  .util > div > span { font-family: var(--mono); font-size: 10pt; font-weight: 600; color: var(--muted); letter-spacing: 0.06em; }
+  .box p { margin: 0; }
+  .box img.eq { display: block; width: auto; max-width: 100%; margin: 1.2mm 0 1.8mm; }
+  .design p { margin: 0; }
+  .budget { margin-top: 3mm; }
+  .contracts { margin-top: 3mm; }
+  .box img.eq { margin: 0.8mm 0 1.2mm; }
+  .stat b { font-size: 30pt; }
+</style>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"
+  onload="renderMathInElement(document.body, {delimiters: [{left: '$', right: '$', display: false}], throwOnError: false});"></script>
+</head>
+<body>
+<div class="poster">
+
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <marker id="mv" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
+    </defs>
+  </svg>
+
+  <!-- ================= HEADER ================= -->
+  <header>
+    <div>
+      <p class="kicker"><span>CG4002</span><span>Group B13</span><span>Two-player AR boxing</span></p>
+      <h1><span class="r">AR</span> <span class="b">Boxing</span></h1>
+      <p class="tagline">Throw real punches. Land them in augmented reality. Players never touch.</p>
+    </div>
+    <div class="stats">
+      <div class="stat r"><b>$\mathbf{9}$</b><span>moves recognised, plus idle</span></div>
+      <div class="stat"><b>$\mathbf{100}\,\textbf{Hz}$</b><span>$4$ IMUs, $2$ per player</span></div>
+      <div class="stat b"><b>$\mathbf{4}\textbf{-bit}$</b><span>CNN on the Ultra96 FPGA</span></div>
+      <div class="stat r"><b>$\mathbf{1.35}\,\textbf{ms}$</b><span>FPGA inference, on the board</span></div>
+      <div class="stat"><b>$\mathbf{97.3}\boldsymbol{\%}$</b><span>test accuracy, $4$-bit CNN</span></div>
+      <div class="stat b"><b>$\boldsymbol{{\le}\,50}\,\textbf{ms}$</b><span>latency budget</span></div>
+    </div>
+  </header>
+
+  <main>
+
+    <!-- ================= OVERVIEW / FEATURES / USE CASES ================= -->
+    <section class="intro">
+      <div class="panel">
+        <h3>The game</h3>
+        <p>A two-player, <b>non-contact</b> boxing match. Each player wears an IMU on both wrists and an AprilTag on the chest, and holds an iPhone. Throw a real jab, hook or uppercut across the room: your phone draws the fight over the camera view, and the Ultra96 decides if it landed.</p>
+        <div class="howto">
+          <div><div class="k"><i>$1$</i>Gear up</div><span>Strap on both gloves, pin on the tag, open the app.</span></div>
+          <div><div class="k"><i>$2$</i>Fight</div><span>Punch, block, weave. A hit counts only if your phone sees the tag.</span></div>
+          <div><div class="k"><i>$3$</i>Win</div><span>Take them to $0$ health, or lead after $3$ minutes.</span></div>
+        </div>
+      </div>
+
+      <div class="panel feat">
+        <h3>Features</h3>
+        <ul class="feats">
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#C8232C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="7"/><path d="M5 12H1M23 12h-4M12 5V1"/></svg><div><b>Real punches</b>No controller. Your wrists are the input.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#C8232C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="7" cy="12" r="4"/><circle cx="17" cy="12" r="4"/></svg><div><b>Both hands</b>Left and right punches are told apart.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#DD6B20" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M9 2v4M15 2v4M9 18v4M15 18v4M2 9h4M2 15h4M18 9h4M18 15h4"/></svg><div><b>AI on the FPGA</b>A quantised CNN in hardware names each move.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#16171B" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.5 8.5-8 10-4.5-1.5-8-5-8-10V6z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg><div><b>Fair by design</b>Only the Ultra96 sets health and stamina.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#1F5FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M7 7h4v4H7zM13 13h4v4h-4zM13 7h4M7 15h4"/></svg><div><b>AprilTag lock</b>Your phone tracks the opponent you aim at.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#1F5FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="17" rx="10" ry="4"/><path d="M12 3v10M8 7l4-4 4 4"/></svg><div><b>Floor arena + HUD</b>Health, stamina, timer and hit effects.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#C8232C" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="5" width="8" height="14" rx="2"/><path d="M4 8v8M20 8v8M1.5 10v4M22.5 10v4"/></svg><div><b>Haptics</b>Your glove buzzes when your punch lands.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.5-7 10-7 10z"/><path d="M12 10v5M9.5 12.5h5"/></svg><div><b>Pickups</b>Health, stamina and attack boosts.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#0E8C82" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg><div><b>Encrypted</b>TLS from glove to Ultra96, WSS to phones.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#0E8C82" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a8 8 0 1 1-2.3-5.6"/><path d="M20 3v4h-4"/></svg><div><b>Pause + rejoin</b>A dropped phone pauses the match.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 4.5-9 4.5-9-4.5z"/><path d="M6 10v5c3 2.5 9 2.5 12 0v-5"/></svg><div><b>Tutorial</b>A practice bag that punches back.</div></li>
+          <li><svg viewBox="0 0 24 24" fill="none" stroke="#1F5FA8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="7" width="19" height="10" rx="3"/><circle cx="8" cy="12" r="2"/><circle cx="16" cy="12" r="2"/></svg><div><b>Headset mode</b>Slot the phone in for hands-free AR.</div></li>
+        </ul>
+      </div>
+
+      <div class="uses-p">
+        <div class="ptitle">Use cases</div>
+        <div class="usecase"><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><div><b>Fitness</b><span>A cardio boxing workout. Stamina makes you pace your punches.</span></div></div>
+        <div class="usecase"><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1"/></svg><div><b>Technique practice</b><span>Each move must be thrown cleanly before the AI counts it.</span></div></div>
+        <div class="usecase"><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="3"/><circle cx="16" cy="8" r="3"/><path d="M2 20c0-3.5 2.7-6 6-6s6 2.5 6 6M10 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/></svg><div><b>Safe sparring</b><span>Play a friend in any room. Nobody gets hit.</span></div></div>
+        <div class="usecase"><svg viewBox="0 0 24 24" fill="none" stroke="#E7A615" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="1"/><path d="M9 1v3M15 1v3M9 20v3M15 20v3M1 9h3M1 15h3M20 9h3M20 15h3"/></svg><div><b>Edge AI reference</b><span>A full example of motion recognition on a low-power FPGA.</span></div></div>
+      </div>
+    </section>
+
+    <!-- ================= MOVE SET ================= -->
+    <section class="moves">
+      <div class="lead">
+        <div class="ptitle">The move set</div>
+        <p><b>$9$ moves, $10$ classes.</b> Left and right are told apart; an <b>idle</b> class soaks up footwork.</p>
+        <p>$100$ health and $100$ stamina each. Stamina refills at $4$ per second; punches have a $1.5\,\text{s}$ cooldown.</p>
+      </div>
+
+      <div class="move"><span class="hand">L</span>
+        <svg viewBox="0 0 64 40"><g stroke="#16171B" stroke-width="1.3" stroke-linecap="round" fill="none"><path d="M8,16 H24 M4,20 H26 M8,24 H24" opacity="0.45"/><path d="M28,20 H44" marker-end="url(#mv)"/></g><circle cx="52" cy="20" r="7" fill="#C8232C"/></svg>
+        <div class="mn">Jab</div><div class="mc">l_straight</div><div class="me">$3$ damage<br>$10$ stamina</div></div>
+
+      <div class="move"><span class="hand">R</span>
+        <svg viewBox="0 0 64 40"><g stroke="#16171B" stroke-width="1.3" stroke-linecap="round" fill="none"><path d="M4,13 H22 M2,20 H24 M4,27 H22" opacity="0.45"/><path d="M26,20 H44" marker-end="url(#mv)" stroke-width="1.8"/></g><circle cx="52" cy="20" r="8" fill="#C8232C"/></svg>
+        <div class="mn">Cross</div><div class="mc">r_straight</div><div class="me">$4$ damage<br>$12$ stamina</div></div>
+
+      <div class="move"><span class="hand">L / R</span>
+        <svg viewBox="0 0 64 40"><path d="M10,34 C9,14 20,8 40,10" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="48" cy="12" r="7" fill="#C8232C"/></svg>
+        <div class="mn">Hook</div><div class="mc">l_hook, r_hook</div><div class="me">$6$ damage<br>$16$ stamina</div></div>
+
+      <div class="move"><span class="hand">L / R</span>
+        <svg viewBox="0 0 64 40"><path d="M14,36 C34,38 42,30 40,15" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="39" cy="9" r="7" fill="#C8232C"/></svg>
+        <div class="mn">Uppercut</div><div class="mc">l_ / r_uppercut</div><div class="me">$8$ damage<br>$22$ stamina</div></div>
+
+      <div class="move def">
+        <svg viewBox="0 0 64 40"><circle cx="32" cy="17" r="11" fill="#16171B"/><rect x="27" y="27" width="10" height="13" fill="#16171B"/><ellipse cx="26" cy="20" rx="7" ry="9" fill="#1F5FA8" stroke="#fff" stroke-width="1.2"/><ellipse cx="38" cy="20" rx="7" ry="9" fill="#1F5FA8" stroke="#fff" stroke-width="1.2"/></svg>
+        <div class="mn">Block</div><div class="mc">block</div><div class="me">damage $\times\,0.25$<br>$8$ stamina, $1\,\text{s}$</div></div>
+
+      <div class="move def">
+        <svg viewBox="0 0 64 40"><path d="M10,8 C18,34 46,34 52,10" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" fill="none" marker-end="url(#mv)"/><circle cx="32" cy="27" r="7" fill="#1F5FA8"/><circle cx="10" cy="8" r="4" fill="none" stroke="#1F5FA8" stroke-width="1.2" opacity="0.6"/></svg>
+        <div class="mn">Weave</div><div class="mc">weave</div><div class="me">Dodge all punches<br>$3\,\text{s}$, $35$ stamina</div></div>
+
+      <div class="move itm">
+        <svg viewBox="0 0 64 40"><ellipse cx="32" cy="34" rx="16" ry="4" fill="#FBF0D5" stroke="#E7A615" stroke-width="1.2"/><path d="M32,27 v5 M29.5,31 h5" stroke="#E7A615" stroke-width="1.6"/><path d="M32,4 V18" stroke="#16171B" stroke-width="1.5" stroke-dasharray="3 2" marker-end="url(#mv)"/><circle cx="20" cy="9" r="6" fill="#C8232C"/></svg>
+        <div class="mn">Pickup</div><div class="mc">pickup</div><div class="me">Grab an item<br>within $0.5\,\text{m}$</div></div>
+
+      <div class="move itm">
+        <svg viewBox="0 0 64 40"><path d="M16,30 C8,24 6,16 12,13 C15,12 16,14 16,15 C16,14 17,12 20,13 C26,16 24,24 16,30 Z" fill="#C8232C"/><rect x="28" y="12" width="9" height="20" rx="2" fill="#5B9BE6"/><rect x="30" y="8" width="5" height="5" rx="1" fill="#1F5FA8"/><path d="M48,8 L44,21 H50 L46,34 L56,17 H50 L54,8 Z" fill="#E7A615"/></svg>
+        <div class="mn">Items</div><div class="mc">health, stamina, attack</div><div class="me">$+25$ HP, $+40$ stamina<br>or $\times\,1.5$ for $30\,\text{s}$</div></div>
+    </section>
+
+    <!-- ================= ARCHITECTURE ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">01</span>
+        <h2>System architecture</h2>
+        <p>Gloves sense, the Ultra96 decides, the phones show.</p>
+      </div>
+      <div class="archrow">
+        <div class="arch">
+          <div class="dia-wrap">
+          <div class="dia" role="img" aria-label="System architecture">
+            <svg viewBox="0 0 520 170" xmlns="http://www.w3.org/2000/svg">
+              <defs>
+                <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
+                <marker id="ahs" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="3.2" markerHeight="3.2" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#16171B"/></marker>
+                <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="#C8232C"/></marker>
+              </defs>
+              <rect x="0" y="12" width="112" height="134" fill="#F8E3E2" stroke="#C8232C" stroke-width="0.8"/>
+              <rect x="6" y="30" width="100" height="40" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+              <line x1="56" y1="71" x2="56" y2="91" stroke="#16171B" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ah)"/>
+              <rect x="6" y="92" width="100" height="48" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+              <line x1="106" y1="109" x2="165" y2="109" stroke="#16171B" stroke-width="1.1" marker-end="url(#ah)"/>
+              <line x1="165" y1="123" x2="108" y2="123" stroke="#C8232C" stroke-width="0.9" stroke-dasharray="2 1.5" marker-end="url(#ahr)"/>
+              <rect x="166" y="12" width="210" height="134" fill="#F4F1EA" stroke="#16171B" stroke-width="0.9"/>
+              <rect x="172" y="20" width="96" height="58" fill="#fff" stroke="#16171B" stroke-width="0.6"/>
+              <rect x="274" y="20" width="96" height="58" fill="#FCEBDD" stroke="#DD6B20" stroke-width="0.8"/>
+              <line x1="268" y1="43" x2="273" y2="43" stroke="#16171B" stroke-width="0.8" marker-end="url(#ah)"/>
+              <line x1="274" y1="55" x2="269" y2="55" stroke="#16171B" stroke-width="0.8" marker-end="url(#ah)"/>
+              <rect x="172" y="88" width="198" height="52" fill="#16171B"/>
+              <line x1="220" y1="78" x2="220" y2="87" stroke="#16171B" stroke-width="1" marker-end="url(#ah)"/>
+              <line x1="377" y1="82" x2="387.5" y2="82" stroke="#16171B" stroke-width="1.1" marker-start="url(#ahs)" marker-end="url(#ahs)"/>
+              <rect x="388" y="71" width="28" height="22" rx="2" fill="#fff" stroke="#5C5E63" stroke-width="0.5" stroke-dasharray="1.5 1"/>
+              <line x1="413" y1="70" x2="427" y2="57" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+              <line x1="413" y1="94" x2="427" y2="107" stroke="#16171B" stroke-width="1.1" marker-start="url(#ah)" marker-end="url(#ah)"/>
+              <rect x="428" y="16" width="92" height="56" rx="6" fill="#fff" stroke="#C8232C" stroke-width="1.2"/>
+              <rect x="428" y="92" width="92" height="56" rx="6" fill="#fff" stroke="#1F5FA8" stroke-width="1.2"/>
+            </svg>
+
+            <div class="m sc" style="left:0; top:0">Hardware</div>
+            <div class="m sc" style="left:166mm; top:0">AI and game engine on Ultra96</div>
+            <div class="m sc" style="left:428mm; top:0">Visualizer</div>
+
+            <div class="t" style="left:6mm; top:14mm"><b style="color:var(--red); font-size:6.6mm">Gloves $\times\,2$ per player</b></div>
+            <div class="t" style="left:12mm; top:32mm"><b>Left glove</b>MPU6050 IMU, $\pm 16\,g$, $\pm 2000^{\circ}/\text{s}$<br>FireBeetle ESP32<br>$100\,\text{Hz}$ sampling</div>
+            <div class="m" style="left:60mm; top:78mm; color:var(--ink)">ESP-NOW</div>
+            <div class="t" style="left:12mm; top:94mm"><b>Right glove = gateway</b>IMU, ESP32, Wi-Fi<br>Forwards both gloves’ samples<br>Vibration motor in each glove</div>
+
+            <div class="m ctr" style="left:112mm; top:101mm; width:54mm; color:var(--ink)">TLS over TCP</div>
+            <div class="t small ctr" style="left:112mm; top:110.5mm; width:54mm">binary packets</div>
+            <div class="t small ctr" style="left:112mm; top:124.5mm; width:54mm; color:var(--red); font-weight:600">ACTUATE: buzz on hit</div>
+
+            <div class="t ps" style="left:178mm; top:22mm"><span class="m" style="position:static">PS: ARM CPU</span><br>Pair left and right on one clock<br>$320\,\text{ms}$ window, every $40\,\text{ms}$<br>Normalise $\to$ $4$-bit integers<br>Confidence gate $\to$ one action</div>
+            <div class="t" style="left:280mm; top:22mm; line-height:8.5mm"><span class="m" style="position:static; color:#DD6B20">PL: FPGA</span><b style="font-size:6.6mm; line-height:8mm">1D-CNN<br>accelerator</b>$4$-bit weights, HLS<br>bit-exact with training</div>
+            <div class="t eng" style="left:179mm; top:91mm"><span class="m" style="position:static; color:var(--gold)">Game engine: decides every outcome</span><b>Health, stamina, guard, weave, items, timer</b>Base damage: jab $3$, cross $4$, hook $6$, uppercut $8$<br>Blocking cuts damage to $25\%$, rounds last $180\,\text{s}$</div>
+
+            <div class="t small ctr" style="left:388mm; top:74mm; width:28mm; line-height:6mm"><b style="font-size:4.8mm; color:var(--muted)">Laptop</b>relay only</div>
+            <div class="m ctr" style="left:388mm; top:95.5mm; width:28mm; color:var(--ink)">WSS</div>
+
+            <div class="t" style="left:436mm; top:19mm; line-height:7.6mm"><b style="color:var(--red); font-size:6.6mm">Player $1$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
+            <div class="t" style="left:436mm; top:95mm; line-height:7.6mm"><b style="color:var(--blue); font-size:6.6mm">Player $2$ iPhone</b>Unity and ARKit<br>AprilTag on opponent<br>HUD, effects, audio<br><span style="color:var(--blue); font-weight:600">Reports if opponent is in view</span></div>
+
+            <div class="t ctr" style="left:0; top:155mm; width:520mm; font-size:5.4mm">Each phone tells the Ultra96 whether it can see the opponent, then shows the result. Neither phone can change health or stamina.</div>
+          </div>
+          </div>
+        </div>
+
+        <div class="side">
+          <div class="panel">
+            <h4>Every link, end to end</h4>
+            <table class="links">
+              <tr><th>Link</th><th>Transport</th><th>Carries</th></tr>
+              <tr><td>Left $\to$ right glove</td><td>ESP-NOW</td><td>IMU samples</td></tr>
+              <tr><td>Glove $\leftrightarrow$ Ultra96</td><td>TCP, $\text{TLS}\ 1.2$</td><td>$26\,\text{B}$ packets, haptics</td></tr>
+              <tr><td>AI $\to$ engine</td><td>Same process</td><td>Action, confidence</td></tr>
+              <tr><td>Ultra96 $\leftrightarrow$ phone</td><td>WSS via laptop</td><td>JSON, protocol v2</td></tr>
+            </table>
+          </div>
+          <div class="panel">
+            <h4>On the FPGA (XCZU3EG)</h4>
+            <div class="util">
+              <div><b>$43.6\%$</b><span>DSP</span></div>
+              <div><b>$15.7\%$</b><span>BRAM</span></div>
+              <div><b>$7.9\%$</b><span>LUT</span></div>
+              <div><b>$4.0\%$</b><span>FF</span></div>
+            </div>
+            <p class="fine">At $100\,\text{MHz}$: $1.35\,\text{ms}$ per window on the board, $3.60\,\text{ns}$ timing slack, $0.12\,\text{W}$ for the whole PL.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= END-TO-END PIPELINE ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">02</span>
+        <h2>End-to-end pipeline</h2>
+        <p>One punch, from the wrist to both screens.</p>
+      </div>
+      <div class="pipe">
+        <div class="chain">
+          <div class="stg hw"><div class="hd"><span>Glove</span><s>$1$</s></div><div class="bd"><b>Sense</b><span>MPU6050 reads accel at $\pm 16\,g$ and gyro at $\pm 2000^{\circ}/\text{s}$, through a low-pass filter.</span><div class="kpi">$10\,\text{ms}$<small>per sample</small></div></div></div>
+          <div class="stg hw"><div class="hd"><span>Glove</span><s>$2$</s></div><div class="bd"><b>Relay</b><span>The left glove sends to the right over ESP-NOW. The right glove stamps both with one clock.</span><div class="kpi">$1$ link<small>per player</small></div></div></div>
+          <div class="stg cm"><div class="hd"><span>Comms</span><s>$3$</s></div><div class="bd"><b>Transmit</b><span>A framed, checksummed packet goes over TLS to the Ultra96. Silent gloves are dropped.</span><div class="kpi">$26\,\text{B}$<small>per wrist sample</small></div></div></div>
+          <div class="stg ai"><div class="hd"><span>AI on PS</span><s>$4$</s></div><div class="bd"><b>Pair</b><span>Left and right samples are matched on the shared clock into one row.</span><div class="kpi">$12$<small>channels per row</small></div></div></div>
+          <div class="stg ai"><div class="hd"><span>AI on PS</span><s>$5$</s></div><div class="bd"><b>Window</b><span>The last $32$ rows are normalised and rounded to $4$-bit integers.</span><div class="kpi">$0.34\,\text{ms}$<small>push + normalise</small></div></div></div>
+          <div class="stg ai"><div class="hd"><span>AI on PL</span><s>$6$</s></div><div class="bd"><b>Infer</b><span>The FPGA runs the CNN and returns $10$ class scores.</span><div class="kpi">$1.35\,\text{ms}$<small>copy, run, read back</small></div></div></div>
+          <div class="stg ai"><div class="hd"><span>AI on PS</span><s>$7$</s></div><div class="bd"><b>Decide</b><span>Softmax, then confidence, intensity and timing gates turn windows into one action.</span><div class="kpi">$0.21\,\text{ms}$<small>gates, $p \ge 0.90$</small></div></div></div>
+          <div class="stg ge"><div class="hd"><span>Engine</span><s>$8$</s></div><div class="bd"><b>Resolve</b><span>Checks cooldown, stamina, guard and weave, asks the attacker’s phone if the target is in view.</span><div class="kpi">$\le 750\,\text{ms}$<small>for the phone to reply</small></div></div></div>
+          <div class="stg vz"><div class="hd"><span>Phones</span><s>$9$</s></div><div class="bd"><b>Show + feel</b><span>Both phones play the outcome. The attacker’s glove buzzes on a hit.</span><div class="kpi">$10\,\text{Hz}$<small>state to both phones</small></div></div></div>
+        </div>
+
+        <div class="budget">
+          <div class="bl"><b>Latency budget</b><span>Motion to decision, per player</span></div>
+          <div>
+            <div class="stack">
+              <div class="w"><span>Waiting for the next window: $40\,\text{ms}$ stride</span></div>
+              <div class="p"><span>PS: $8\,\text{ms}$</span></div>
+              <div class="l"><span>PL</span></div>
+            </div>
+            <div class="ticks"><span>$0\,\text{ms}$</span><span>AI per window: $0.34 + 1.35 + 0.21 \approx 1.9\,\text{ms}$ · punch to label $21.9\,\text{ms}$ of $50\,\text{ms}$</span></div>
+          </div>
+        </div>
+
+        <div class="contracts">
+          <div class="box">
+            <h4><span class="pill hw">HW</span><span class="pill cm">Comms</span><span>Sensor packet, byte by byte</span></h4>
+            <div class="bytes">
+              <div class="f" style="flex:1">AA<small>start</small></div>
+              <div class="h" style="flex:1">05<small>type</small></div>
+              <div class="h" style="flex:1">P<small>player</small></div>
+              <div class="h" style="flex:1">N<small>node</small></div>
+              <div class="c" style="flex:3">clock<small>uint32 ms</small></div>
+              <div class="a" style="flex:4">accel x y z<small>$3 \times$ int16</small></div>
+              <div class="g" style="flex:4">gyro x y z<small>$3 \times$ int16</small></div>
+              <div class="c" style="flex:3">epoch<small>uint32</small></div>
+              <div class="s" style="flex:1">XOR<small>sum</small></div>
+              <div class="f" style="flex:1">55<small>end</small></div>
+            </div>
+            <p>The checksum is the XOR of every byte from type to payload end. The parser knows each type’s length, so it resyncs after a corrupt byte.</p>
+          </div>
+          <div class="box">
+            <h4><span class="pill cm">Comms</span><span class="pill ai">AI</span><span>Normalise and quantise</span></h4>
+            <div class="eq">$q_c = \operatorname{clip}\!\left(\left\lfloor \dfrac{x_c-\mu_c}{\sigma_c\, s} \right\rceil,\,q_{\min},\,q_{\max}\right)$</div>
+            <p>Each of the $12$ channels uses its training mean $\mu_c$ and spread $\sigma_c$. The scale $s$ is a power of two, so the FPGA rescales with bit shifts.</p>
+          </div>
+          <div class="box">
+            <h4><span class="pill ai">AI</span><span class="pill ge">Engine</span><span>Window to action</span></h4>
+            <div class="eq">$\hat{y} = \arg\max_k\, p_k,\qquad I = \lVert \mathbf{a} \rVert - g$</div>
+            <p>Fires only if $p \ge 0.90$ and $I \ge 10\,\text{m/s}^2$. One event per $150\,\text{ms}$, and the same hand waits $300\,\text{ms}$ before its next punch.</p>
+          </div>
+          <div class="box">
+            <h4><span class="pill ge">Engine</span><span class="pill vz">Viz</span><span>Damage rule</span></h4>
+            <div class="eq">$D = D_{\text{base}} \cdot k \cdot a \cdot m$</div>
+            <div class="eq">$m = \begin{cases} m_{\text{block}} & \text{blocked} \\ 0 & \text{dodged or not in view} \\ 1 & \text{otherwise} \end{cases}$</div>
+            <p>$k$ scales with intensity. $m_{\text{block}} = 0.25$; $a = 1.5$ during an attack boost, else $1$.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================= SUBSYSTEMS ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">03</span>
+        <h2>Four subsystems</h2>
+        <p>What each part does, and what it measured.</p>
+      </div>
+      <div class="cards">
+        <svg class="boxer" viewBox="0 0 534 172" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+          <defs>
+            <marker id="trailhead" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="4" markerHeight="4" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#DD6B20"/></marker>
+          </defs>
+          <g transform="translate(85.44 -10) scale(0.68)">
+            <ellipse cx="267" cy="246" rx="60" ry="9" fill="#1F5FA8" fill-opacity="0.08" stroke="#1F5FA8" stroke-width="0.9" stroke-dasharray="3 2"/>
+            <g fill="none" stroke="#16171B" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M256,158 L247,202 L241,238" stroke-width="15"/>
+              <path d="M278,158 L287,202 L293,238" stroke-width="15"/>
+              <path d="M242,242 L229,244" stroke-width="8"/>
+              <path d="M292,242 L305,244" stroke-width="8"/>
+            </g>
+            <path d="M245,124 L289,124 L295,166 L271,166 L267,150 L263,166 L239,166 Z" fill="#16171B"/>
+            <rect x="245" y="124" width="44" height="5" fill="#C8232C"/>
+            <path d="M239,70 C239,63 242,60 249,60 L285,60 C292,60 295,63 295,70 L289,126 L245,126 Z" fill="#16171B"/>
+            <rect x="261" y="46" width="12" height="16" fill="#16171B"/>
+            <circle cx="267" cy="34" r="16" fill="#16171B"/>
+            <rect x="246" y="26" width="42" height="14" rx="4" fill="#1F5FA8"/>
+            <rect x="250" y="29" width="34" height="2.6" rx="1.3" fill="#9CC2EE"/>
+            <rect x="256" y="89" width="22" height="22" fill="#fff"/>
+            <rect x="259" y="92" width="16" height="16" fill="#16171B"/>
+            <g fill="#fff"><rect x="262.2" y="95.2" width="3.2" height="3.2"/><rect x="268.6" y="95.2" width="3.2" height="3.2"/><rect x="265.4" y="98.4" width="3.2" height="3.2"/><rect x="262.2" y="101.6" width="3.2" height="3.2"/><rect x="265.4" y="101.6" width="3.2" height="3.2"/></g>
+            <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M240,64 L226,112 L256,80" stroke="#F4F1EA" stroke-width="16.5"/>
+              <path d="M294,64 L308,112 L278,80" stroke="#F4F1EA" stroke-width="16.5"/>
+              <path d="M240,64 L226,112 L256,80" stroke="#16171B" stroke-width="12"/>
+              <path d="M294,64 L308,112 L278,80" stroke="#16171B" stroke-width="12"/>
+            </g>
+            <g stroke="#E7A615" stroke-width="4.5">
+              <line x1="246.8" y1="80.4" x2="256.2" y2="89.2"/>
+              <line x1="277.8" y1="89.2" x2="287.2" y2="80.4"/>
+            </g>
+            <g stroke="#F4F1EA" stroke-width="1.6">
+              <ellipse cx="256" cy="62" rx="11" ry="13" transform="rotate(-10 256 62)" fill="#C8232C"/>
+              <ellipse cx="278" cy="62" rx="11" ry="13" transform="rotate(10 278 62)" fill="#C8232C"/>
+            </g>
+            <ellipse cx="264" cy="68" rx="3" ry="5.4" transform="rotate(-20 264 68)" fill="#9E1B22"/>
+            <ellipse cx="270" cy="68" rx="3" ry="5.4" transform="rotate(20 270 68)" fill="#9E1B22"/>
+            <g fill="none" stroke="#0E8C82" stroke-width="1.6" stroke-linecap="round">
+              <path d="M243.3,56.1 A14 14 0 0 1 249.0,49.9"/>
+              <path d="M237.9,53.5 A20 20 0 0 1 246.0,44.7"/>
+              <path d="M232.4,51.0 A26 26 0 0 1 243.0,39.5"/>
+            </g>
+            <g fill="none" stroke="#DD6B20" stroke-linecap="round">
+              <path d="M318,150 C330,120 328,95 310,80" stroke-width="1.6" stroke-dasharray="3 2.2" marker-end="url(#trailhead)"/>
+              <path d="M326,146 C338,118 336,92 318,74" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity="0.6"/>
+              <path d="M312,152 C322,126 321,108 311,94" stroke-width="1.1" stroke-dasharray="2.4 2.2" opacity="0.6"/>
+            </g>
+          </g>
+          <g stroke-width="0.8" fill="none">
+            <line x1="195" y1="23" x2="241" y2="23" stroke="#0E8C82"/>
+            <line x1="339" y1="31" x2="284" y2="31" stroke="#C8232C"/>
+            <line x1="195" y1="157" x2="225" y2="157" stroke="#1F5FA8"/>
+            <line x1="339" y1="96" x2="301" y2="96" stroke="#DD6B20"/>
+          </g>
+          <g stroke="#fff" stroke-width="0.7">
+            <circle cx="242" cy="23" r="2.1" fill="#0E8C82"/>
+            <circle cx="283" cy="31" r="2.1" fill="#C8232C"/>
+            <circle cx="226" cy="157" r="2.1" fill="#1F5FA8"/>
+            <circle cx="300" cy="96" r="2.1" fill="#DD6B20"/>
+          </g>
+          <g class="callout" font-size="4.6">
+            <text x="198" y="19" fill="#0E8C82">WI-FI</text>
+            <text x="336" y="27" fill="#C8232C" text-anchor="end">IMU GLOVE</text>
+            <text x="198" y="152" fill="#1F5FA8">AR ARENA</text>
+            <text x="336" y="105" fill="#DD6B20" text-anchor="end">UPPERCUT</text>
+          </g>
+        </svg>
+
+        <article class="card comm">
+          <div class="card-top"><h3>Comms</h3><span class="tag">TLS · WSS · JSON</span></div>
+          <p class="role">Encrypted, self-healing links from glove to phone.</p>
+          <ul>
+            <li>Binary glove protocol: handshake, heartbeat, clock sync, actuate</li>
+            <li>The gateway reconnects and performs a fresh handshake after a link failure</li>
+            <li>Phones get MatchState every $100\,\text{ms}$, plus a GameEvent per outcome</li>
+            <li>Every attack has an ID, so a retried message is applied once</li>
+          </ul>
+          <div class="metric"><b>$\text{TLS}\ 1.2$</b><span>minimum on both the glove link and the phone link</span></div>
+        </article>
+
+        <article class="card hw">
+          <div class="card-top"><h3>Hardware</h3><span class="tag">ESP32 · MPU6050</span></div>
+          <p class="role">Two gloves per player, no room sensors.</p>
+          <ul>
+            <li>$6$-axis IMU on each wrist: $\pm 16\,g$ accel, $\pm 2000^{\circ}/\text{s}$ gyro</li>
+            <li>Left glove relays through the right glove over ESP-NOW</li>
+            <li>Both gloves join the same hotspot. The right glove maintains one TLS connection</li>
+            <li>Vibration motor in each glove: a $200\,\text{ms}$ buzz when your punch lands</li>
+          </ul>
+          <div class="metric"><b>$100\,\text{Hz}$</b><span>sampling on every wrist, $12$ channels per player</span></div>
+        </article>
+
+        <article class="card viz">
+          <div class="card-top"><h3>Visualizer</h3><span class="tag">Unity 6 · ARKit · iOS</span></div>
+          <p class="role">The fight, seen through your phone.</p>
+          <ul>
+            <li>AprilTag on the chest locates the opponent; body tracking adds their gloves</li>
+            <li>Floor detection anchors the arena; items float at chest height</li>
+            <li>HUD, hit and block effects, sound, a tutorial and a headset mode</li>
+            <li>Read-only: it shows MatchState and never sets damage</li>
+          </ul>
+          <div class="metric"><b>$0.5\,\text{m}$</b><span>collection ring drawn around every item on the floor</span></div>
+        </article>
+
+        <article class="card ai">
+          <div class="card-top"><h3>AI</h3><span class="tag">Brevitas · HLS · Vivado</span></div>
+          <p class="role">Recognises $10$ classes on the FPGA.</p>
+          <ul>
+            <li>QAT sweeps $8$ to $4$ bits; the narrowest width within $5$ points of FP32 ships</li>
+            <li>The FPGA matches training bit for bit on $800$ held-out test windows</li>
+          </ul>
+          <div class="layers"><div class="layer in"><span class="ln">input</span><span class="ls">$12{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}5$</span><span class="ls">$32{\times}32$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">max pool</span><span class="ls">$32{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">conv, $k{=}3$</span><span class="ls">$64{\times}16$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">avg pool</span><span class="ls">$64$</span></div><span class="arr">$\to$</span><div class="layer"><span class="ln">fc</span><span class="ls">$32$</span></div><span class="arr">$\to$</span><div class="layer out"><span class="ln">fc</span><span class="ls">$10$</span></div></div>
+          <div class="cap">Channels $\times$ time. ReLU after both convs and the first fc. $10{,}570$ parameters.</div>
+          <div class="metric"><b>$97.3\%$</b><span>test accuracy at $4$ bits (FP32: $99.4\%$)</span></div>
+        </article>
+      </div>
+    </section>
+
+    <!-- ================= DESIGN CHOICES ================= -->
+    <section>
+      <div class="sec-head">
+        <span class="num">04</span>
+        <h2>Design choices</h2>
+        <p>The decisions that shaped the system.</p>
+      </div>
+      <div class="designs">
+        <div class="design"><div class="pills"><span class="pill ge">Engine</span><span class="pill vz">Viz</span></div><b>One authority</b><p>The game engine runs on the Ultra96. A phone only reports AR observations. The Ultra96 resolves hits, pickups, and scoring.</p></div>
+        <div class="design"><div class="pills"><span class="pill hw">HW</span><span class="pill cm">Comms</span></div><b>Gateway glove</b><p>The left glove talks only to the right one over ESP-NOW. That gives <em>one TLS handshake and one clock</em> per player, so both wrists line up in time.</p></div>
+        <div class="design"><div class="pills"><span class="pill ai">AI</span></div><b>Gate, don’t vote</b><p>Overlapping windows see one punch $4$ to $6$ times. A <em>$0.90$ gate that re-arms only when the class changes</em> makes it fire once.</p></div>
+        <div class="design"><div class="pills"><span class="pill ge">Engine</span></div><b>Tuned by simulation</b><p>A $1.5\,\text{s}$ cooldown and slow stamina refill were set with a <em>Monte Carlo of realistic play</em>: a match ends at a median of about $176\,\text{s}$.</p></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <span>CG4002 Computer Engineering Capstone, NUS, AY2026/27 Semester 1</span>
+    <span class="bar2"><i style="background:var(--red)"></i><i style="background:var(--teal)"></i><i style="background:var(--orange)"></i><i style="background:var(--blue)"></i></span>
+    <span>Group B13</span>
+  </footer>
+
+</div>
+</body>
+</html>
