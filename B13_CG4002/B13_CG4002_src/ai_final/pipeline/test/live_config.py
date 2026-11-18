@@ -21,8 +21,8 @@ from u96_config import BUILD_DIR_NAME  # noqa: E402
 train_config = export_config.train_config
 build_config = export_config.build_config
 
-DATASET_SCRIPT_DIR = train_config.DATA_DIR / Path(train_config.CSV_NAME).stem / "script"
-DATASET_CONFIG_NAME = "clean_config.py"
+DATASET_SCRIPT_DIR = REPO_DIR / "data-conversion"
+DATASET_CONFIG_NAME = "convert_config.py"
 
 if str(DATASET_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(DATASET_SCRIPT_DIR))
